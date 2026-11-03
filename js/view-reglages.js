@@ -36,6 +36,8 @@ export function render() {
       ${field('Taux de TVA proposé sur les nouvelles factures (%)', `<input name="tvaTaux" inputmode="decimal" value="${esc(s.tvaTaux)}">`, '0 = franchise en base de TVA (aucune TVA facturée).')}
       ${field('Indemnité kilométrique proposée (€/km)', `<input name="kmRate" inputmode="decimal" value="${esc(s.kmRate)}">`)}
       ${field('Seuil de franchise de TVA (€)', `<input name="seuilTva" inputmode="decimal" value="${esc(s.seuilTva)}">`, 'Repris de votre Excel (124 jours × 300 € = 37 200 €). Mettez 0 pour masquer l\'indicateur.')}
+      ${field('Simulation de TVA : taux (%)', `<input name="tvaSimTaux" inputmode="decimal" value="${esc(s.tvaSimTaux)}">`, 'Taux utilisé pour estimer la TVA si vous sortiez de la franchise (20 % en général).')}
+      ${field('Simulation de TVA : vos prix actuels…', `<select name="tvaSimMode"><option value="ajoutee"${s.tvaSimMode !== 'incluse' ? ' selected' : ''}>sont HT : la TVA s\'ajoute (le client paie plus)</option><option value="incluse"${s.tvaSimMode === 'incluse' ? ' selected' : ''}>seraient TTC : la TVA est comprise (vous gardez moins)</option></select>`)}
       ${field('Taux journalier moyen (€)', `<input name="tjm" inputmode="decimal" value="${esc(s.tjm)}">`, 'Sert à convertir la marge avant le seuil en nombre de jours.')}
       <div class="form-actions"><button class="btn primary">Enregistrer</button></div>
     </form>
@@ -86,7 +88,7 @@ export function render() {
         const f = fdOf(e);
         const rates = { ...(s.rates || {}) };
         if (f.rateYear === '') delete rates[year]; else rates[year] = num(f.rateYear);
-        await saveSettings({ defaultRate: num(f.defaultRate), rates, periodicite: f.periodicite, tvaTaux: num(f.tvaTaux), kmRate: num(f.kmRate), seuilTva: num(f.seuilTva), tjm: num(f.tjm) });
+        await saveSettings({ defaultRate: num(f.defaultRate), rates, periodicite: f.periodicite, tvaTaux: num(f.tvaTaux), kmRate: num(f.kmRate), seuilTva: num(f.seuilTva), tjm: num(f.tjm), tvaSimTaux: f.tvaSimTaux === '' ? 20 : num(f.tvaSimTaux), tvaSimMode: f.tvaSimMode });
         toast('Paramètres enregistrés');
       });
 

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { recettes, summarize, summarizeYear, periodes, enAttente, nextFactureNumber, factureAmounts, defaultSettings, margeTva, rateFor, suiviMois } from '../js/calc.js';
+import { recettes, summarize, summarizeYear, periodes, enAttente, nextFactureNumber, factureAmounts, defaultSettings, margeTva, rateFor, suiviMois, simulationTva } from '../js/calc.js';
 
 const fac = (id, ht, enc, extra = {}) => ({ id, numero: id, date: '2026-01-05', montantHT: ht, tvaTaux: 0, dateEncaissement: enc, ...extra });
 const mk = (factures, depenses = [], settings = {}) => ({
@@ -89,4 +89,29 @@ test('suivi : la date de réalisation prévue prime sur la date de signature', (
   d.missions[0].devis = [{ id: 'd1', montantHT: 900, dateSignature: '2026-01-05', datePrevue: '2026-03-20' }];
   const s = suiviMois(d, 2026);
   assert.equal(s[0].devisHT, 0); assert.equal(s[2].devisHT, 900); assert.equal(s[11].ecartCumule, 900);
+});
+
+test('suivi : les virements perso apparaissent dans le mois où ils sont faits', () => {
+  const d = mk([], [{ id: 'p1', date: '2026-02-20', categorie: 'perso', montantTTC: 800, montantTVA: 0 }]);
+  const s = suiviMois(d, 2026);
+  assert.equal(s[1].perso, 800); assert.equal(s[0].perso, 0);
+});
+
+test('simulation TVA : collectée sur encaissements − déductible sur dépenses pro, par mois', () => {
+  const d = mk([fac('a', 1000, '2026-03-10')], [
+    { id: 'e1', date: '2026-03-04', categorie: 'fournitures', montantTTC: 120, montantTVA: 20 },
+    { id: 'e2', date: '2026-03-05', categorie: 'perso', montantTTC: 500, montantTVA: 0 },
+  ]);
+  const s = simulationTva(d, 2026);
+  assert.equal(s.months[2].collectee, 200); assert.equal(s.months[2].deductible, 20); assert.equal(s.months[2].aReverser, 180);
+  const d2 = mk([fac('a', 1200, '2026-03-10')], [], { tvaSimMode: 'incluse' });
+  assert.equal(simulationTva(d2, 2026).months[2].collectee, 200); // 1200 TTC → 200 de TVA
+  const d3 = mk([], [{ id: 'e1', date: '2026-04-04', categorie: 'repas', montantTTC: 60, montantTVA: 10 }]);
+  const s3 = simulationTva(d3, 2026);
+  assert.equal(s3.months[3].aReverser, -10); assert.equal(s3.total.aReverser, -10); // crédit de TVA
+});
+
+test('simulation TVA : une facture avec une vraie TVA garde sa TVA', () => {
+  const d = mk([fac('a', 1000, '2026-05-10', { tvaTaux: 10 })]);
+  assert.equal(simulationTva(d, 2026).months[4].collectee, 100);
 });

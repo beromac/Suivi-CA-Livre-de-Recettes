@@ -28,6 +28,8 @@ export function defaultSettings() {
     tvaTaux: 0,              // taux de TVA proposé par défaut sur les factures (0 = sans TVA)
     kmRate: 0,               // €/km proposé par défaut
     tjm: 300,                // taux journalier moyen (€), repris du fichier Excel (CA ÷ 300)
+    tvaSimTaux: 20,          // simulation de TVA (sortie de la franchise) : taux appliqué
+    tvaSimMode: 'ajoutee',   // 'ajoutee' : la TVA s'ajoute aux prix actuels ; 'incluse' : elle est déjà comprise dans les prix
     seuilTva: 37200,         // seuil de franchise de TVA (€) : 124 jours × 300 € dans le fichier Excel
     lastBackup: null,
   };
@@ -220,9 +222,37 @@ export function suiviMois(data, year) {
     let factureHT = 0;
     for (const mission of data.missions) for (const f of mission.factures || []) if ((f.date || '').startsWith(pre)) factureHT += factureAmounts(f).ht;
     factureHT = round2(factureHT);
-    const encaisseHT = summarize(data, year, m).recettesHT;
+    const sm = summarize(data, year, m);
+    const encaisseHT = sm.recettesHT;
     cumul = round2(cumul + devisHT - encaisseHT);
-    out.push({ month: m, devisHT, factureHT, encaisseHT, ecartCumule: cumul, devis });
+    out.push({ month: m, devisHT, factureHT, encaisseHT, perso: sm.perso, ecartCumule: cumul, devis });
   }
   return out;
+}
+
+/**
+ * Simulation de TVA si vous n'étiez plus en franchise : TVA collectée sur les encaissements (exigible à l'encaissement
+ * pour les prestations de services) moins TVA déductible sur les dépenses professionnelles du mois.
+ * Une facture qui porte déjà un taux de TVA garde sa vraie TVA ; les autres sont simulées au taux `tvaSimTaux`.
+ */
+export function simulationTva(data, year) {
+  const st = data.settings;
+  const taux = st.tvaSimTaux === '' || st.tvaSimTaux == null ? 20 : Number(st.tvaSimTaux);
+  const incluse = st.tvaSimMode === 'incluse';
+  const months = [];
+  let cumul = 0;
+  for (let m = 1; m <= 12; m++) {
+    let collectee = 0;
+    for (const r of recettes(data, year, m)) {
+      if (Number(r.facture.tvaTaux) > 0) collectee += r.tva;
+      else collectee += incluse ? r.ht * taux / (100 + taux) : r.ht * taux / 100;
+    }
+    collectee = round2(collectee);
+    const deductible = round2(depenses(data, year, m).filter((d) => !HORS_DEPENSES.includes(d.categorie)).reduce((a, d) => a + expenseAmounts(d).tva, 0));
+    const aReverser = round2(collectee - deductible);
+    cumul = round2(cumul + aReverser);
+    months.push({ month: m, collectee, deductible, aReverser, cumul });
+  }
+  const tot = (k) => round2(months.reduce((a, x) => a + x[k], 0));
+  return { taux, incluse, months, total: { collectee: tot('collectee'), deductible: tot('deductible'), aReverser: tot('aReverser') } };
 }

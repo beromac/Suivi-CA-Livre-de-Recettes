@@ -1,6 +1,6 @@
 // Impression : récapitulatif, livres des recettes / dépenses et justificatifs, par mois ou par année.
 import { state } from './state.js';
-import { MOIS, CATEGORIES, HORS_DEPENSES, recettes, depenses, sumRecettes, summarize, summarizeYear, expenseAmounts, margeTva, rateFor, round2, suiviMois } from './calc.js';
+import { MOIS, CATEGORIES, HORS_DEPENSES, recettes, depenses, sumRecettes, summarize, summarizeYear, expenseAmounts, margeTva, rateFor, round2, suiviMois, simulationTva } from './calc.js';
 import { esc, eur, fmtDate, today, pct } from './util.js';
 import { getFile, pdfToImages } from './files.js';
 import { toast } from './ui.js';
@@ -59,14 +59,22 @@ function recapSheet(year, month) {
   const t = margeTva(data, year);
   if (!month) {
     const ys = summarizeYear(data, year);
+    const sim = simulationTva(data, year);
     const rows = ys.months.map((m) => `<tr><td>${MOIS[m.month - 1]}</td><td class="num">${eur(m.recettesHT)}</td><td class="num">${eur(m.depensesHT)}</td><td class="num">${eur(m.urssafDu)}</td><td class="num">${eur(m.tresorerie)}</td><td class="num">${eur(m.perso)}</td></tr>`).join('');
     const x = ys.total;
     return { land: false, html: `${docHead('Récapitulatif annuel', year, 0)}
       <div class="table-wrap"><table><thead><tr><th>Mois</th><th>Recettes HT</th><th>Dépenses HT</th><th>URSSAF (${pct(x.rate)} %)</th><th>Trésorerie</th><th>Vir. perso</th></tr></thead>
       <tbody>${rows}</tbody><tfoot><tr><td>TOTAL</td><td class="num">${eur(x.recettesHT)}</td><td class="num">${eur(x.depensesHT)}</td><td class="num">${eur(x.urssafDu)}</td><td class="num">${eur(x.tresorerie)}</td><td class="num">${eur(x.perso)}</td></tr></tfoot></table></div>
       <h2>Travail prévu et argent encaissé</h2>
-      <div class="table-wrap"><table><thead><tr><th>Mois</th><th>Devis prévus HT</th><th>Facturé HT</th><th>Encaissé HT</th><th>Écart cumulé</th></tr></thead><tbody>
-      ${suiviMois(data, year).map((x) => `<tr><td>${MOIS[x.month - 1]}</td><td class="num">${eur(x.devisHT)}</td><td class="num">${eur(x.factureHT)}</td><td class="num">${eur(x.encaisseHT)}</td><td class="num">${eur(x.ecartCumule)}</td></tr>`).join('')}</tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Mois</th><th>Devis prévus HT</th><th>Facturé HT</th><th>Encaissé HT</th><th>Vir. perso</th><th>Écart cumulé</th></tr></thead><tbody>
+      ${suiviMois(data, year).map((x) => `<tr><td>${MOIS[x.month - 1]}</td><td class="num">${eur(x.devisHT)}</td><td class="num">${eur(x.factureHT)}</td><td class="num">${eur(x.encaisseHT)}</td><td class="num">${eur(x.perso)}</td><td class="num">${eur(x.ecartCumule)}</td></tr>`).join('')}</tbody></table></div>
+      <h2>Simulation de TVA (hors franchise)</h2>
+      <div class="table-wrap"><table>
+      <thead><tr><th>Mois</th><th class="num">TVA collectée</th><th class="num">TVA déductible</th><th class="num">TVA à reverser</th><th class="num">Cumul</th></tr></thead>
+      <tbody>${sim.months.map((x) => `<tr><td>${MOIS[x.month - 1]}</td><td class="num">${eur(x.collectee)}</td><td class="num">${eur(x.deductible)}</td><td class="num strong">${x.aReverser < 0 ? eur(-x.aReverser) + ' à récupérer' : eur(x.aReverser)}</td><td class="num">${eur(x.cumul)}</td></tr>`).join('')}</tbody>
+      <tfoot><tr><td>TOTAL</td><td class="num">${eur(sim.total.collectee)}</td><td class="num">${eur(sim.total.deductible)}</td><td class="num">${sim.total.aReverser < 0 ? eur(-sim.total.aReverser) + ' à récupérer' : eur(sim.total.aReverser)}</td><td class="num">${eur(sim.total.aReverser)}</td></tr></tfoot>
+    </table></div>
+      <p class="muted">Simulation indicative au taux de ${pct(sim.taux)} %, ${sim.incluse ? 'TVA considérée comme déjà incluse dans vos prix actuels' : 'TVA ajoutée à vos prix actuels'} (réglable dans Réglages). TVA collectée = sur les encaissements du mois ; TVA déductible = « dont TVA » saisie sur vos dépenses professionnelles, justificatifs à l'appui.</p>
       <p class="muted">Recettes = factures encaissées dans le mois (date d'encaissement), hors TVA. Dépenses hors paiements URSSAF et virements personnels. Trésorerie = recettes − dépenses − cotisations URSSAF dues.</p>
       <p>Cotisations URSSAF payées sur l'année : <strong>${eur(x.urssafPaye)}</strong> · reste estimé : <strong>${eur(round2(x.urssafDu - x.urssafPaye))}</strong>
       ${t.seuil ? `<br>Marge avant le seuil de franchise de TVA (${eur(t.seuil)}) : <strong>${t.reste >= 0 ? eur(t.reste) : 'seuil dépassé de ' + eur(-t.reste)}</strong>${t.reste >= 0 && t.jours != null ? ` (≈ ${String(t.jours).replace('.', ',')} jours à ${eur(t.tjm)})` : ''}` : ''}</p>` };
