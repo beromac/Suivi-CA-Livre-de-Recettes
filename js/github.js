@@ -29,7 +29,9 @@ export class GitHub {
   }
 
   async req(method, path, body) {
-    const res = await this.f(`${this.apiBase}/repos/${this.owner}/${this.repo}${path}`, {
+    let res;
+    try {
+      res = await this.f(`${this.apiBase}/repos/${this.owner}/${this.repo}${path}`, {
       method,
       headers: {
         Accept: 'application/vnd.github+json',
@@ -39,7 +41,10 @@ export class GitHub {
       },
       body: body ? JSON.stringify(body) : undefined,
       cache: 'no-store',
-    });
+      });
+    } catch (e) {
+      throw new GitHubError(0, 'Impossible de joindre GitHub (api.github.com). Vérifiez la connexion internet, désactivez le bloqueur de publicités / VPN / filtre réseau pour ce site, puis réessayez. Détail : ' + (e && e.message ? e.message : e));
+    }
     let json = null;
     try { json = await res.json(); } catch { /* corps vide */ }
     return { status: res.status, ok: res.ok, json };
