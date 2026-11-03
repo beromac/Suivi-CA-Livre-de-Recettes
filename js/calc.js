@@ -191,3 +191,38 @@ export function margeTva(data, year) {
   const reste = round2(seuil - ca);
   return { ca, seuil, reste, jours: tjm > 0 ? Math.round((reste / tjm) * 10) / 10 : null, tjm };
 }
+
+/** Date retenue pour situer un devis dans le temps : mois de réalisation prévu, sinon date de signature. */
+export const devisDate = (d) => d.datePrevue || d.dateSignature || '';
+
+/**
+ * Suivi mensuel « travail prévu / facturé / encaissé » : le devis compte dans le mois où le travail est prévu
+ * (ou signé), l'encaissement dans le mois où l'argent arrive. L'écart cumulé = ce qui est travaillé mais pas encore en trésorerie.
+ */
+export function suiviMois(data, year) {
+  const out = [];
+  let cumul = 0;
+  for (let m = 1; m <= 12; m++) {
+    const pre = `${year}-${pad2(m)}`;
+    const devis = [];
+    for (const mission of data.missions) {
+      for (const d of mission.devis || []) {
+        if (devisDate(d).startsWith(pre)) {
+          const enc = {};
+          for (const f of mission.factures || []) {
+            if (f.dateEncaissement) enc[f.dateEncaissement.slice(0, 7)] = round2((enc[f.dateEncaissement.slice(0, 7)] || 0) + factureAmounts(f).ht);
+          }
+          devis.push({ mission, devis: d, montant: round2(d.montantHT), encaissements: enc });
+        }
+      }
+    }
+    const devisHT = round2(devis.reduce((s, x) => s + x.montant, 0));
+    let factureHT = 0;
+    for (const mission of data.missions) for (const f of mission.factures || []) if ((f.date || '').startsWith(pre)) factureHT += factureAmounts(f).ht;
+    factureHT = round2(factureHT);
+    const encaisseHT = summarize(data, year, m).recettesHT;
+    cumul = round2(cumul + devisHT - encaisseHT);
+    out.push({ month: m, devisHT, factureHT, encaisseHT, ecartCumule: cumul, devis });
+  }
+  return out;
+}

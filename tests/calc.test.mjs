@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { recettes, summarize, summarizeYear, periodes, enAttente, nextFactureNumber, factureAmounts, defaultSettings, margeTva, rateFor } from '../js/calc.js';
+import { recettes, summarize, summarizeYear, periodes, enAttente, nextFactureNumber, factureAmounts, defaultSettings, margeTva, rateFor, suiviMois } from '../js/calc.js';
 
 const fac = (id, ht, enc, extra = {}) => ({ id, numero: id, date: '2026-01-05', montantHT: ht, tvaTaux: 0, dateEncaissement: enc, ...extra });
 const mk = (factures, depenses = [], settings = {}) => ({
@@ -73,4 +73,20 @@ test('numérotation des factures et marge avant seuil TVA', () => {
   const dd = mk([fac('a', 6000, '2026-02-02')]);
   const m = margeTva(dd, 2026);
   assert.equal(m.reste, 31200); assert.equal(m.jours, 104); // (37200 − 6000) / 300 = 104 jours, comme l'Excel
+});
+
+test('suivi : devis de janvier (2000 €) encaissé en février → écart cumulé en janvier, soldé en février', () => {
+  const d = mk([fac('F1', 2000, '2026-02-10')]);
+  d.missions[0].devis = [{ id: 'd1', montantHT: 2000, dateSignature: '2026-01-05' }];
+  const s = suiviMois(d, 2026);
+  assert.equal(s[0].devisHT, 2000); assert.equal(s[0].encaisseHT, 0); assert.equal(s[0].ecartCumule, 2000);
+  assert.equal(s[1].devisHT, 0); assert.equal(s[1].encaisseHT, 2000); assert.equal(s[1].ecartCumule, 0);
+  assert.deepEqual(s[0].devis[0].encaissements, { '2026-02': 2000 });
+});
+
+test('suivi : la date de réalisation prévue prime sur la date de signature', () => {
+  const d = mk([]);
+  d.missions[0].devis = [{ id: 'd1', montantHT: 900, dateSignature: '2026-01-05', datePrevue: '2026-03-20' }];
+  const s = suiviMois(d, 2026);
+  assert.equal(s[0].devisHT, 0); assert.equal(s[2].devisHT, 900); assert.equal(s[11].ecartCumule, 900);
 });

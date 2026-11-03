@@ -7,6 +7,7 @@ Application web (PC et Android) qui reprend la structure de votre fichier Excel 
 - **Livre chronologique des recettes** et **des dépenses**, mois par mois, comme dans l'Excel (dépenses avec justificatif, frais kilométriques, virements perso, paiements URSSAF).
 - **URSSAF** : pour chaque mois (ou trimestre), le chiffre d'affaires à déclarer et les cotisations estimées, avec l'échéance habituelle.
 - **Récapitulatif annuel** (recettes, dépenses, URSSAF, trésorerie, marge avant le seuil de TVA).
+- **Travail prévu et argent encaissé** : un tableau par mois compare les devis prévus, le facturé et l'encaissé, avec l'écart cumulé (travaillé mais pas encore en trésorerie). Un devis compte dans son mois de réalisation prévu (champ facultatif du devis) ou, à défaut, dans son mois de signature.
 - **Impression / PDF** du récapitulatif, des livres et de tous les justificatifs, par mois ou par année.
 - **Années** : changez d'année avec les flèches en haut ; chaque année a ses propres totaux.
 - Fonctionne **hors-ligne** une fois ouverte, s'installe comme une application sur Android et sur PC.

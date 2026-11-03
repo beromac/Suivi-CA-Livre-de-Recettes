@@ -147,12 +147,13 @@ export function openMissionForm(m = null) {
 }
 
 function openDevisForm(m, d = null) {
-  const cur = d || { numero: '', dateSignature: today(), montantHT: '', fileId: null };
+  const cur = d || { numero: '', dateSignature: today(), datePrevue: '', montantHT: '', fileId: null };
   const modal = openModal({
     title: d ? 'Modifier le devis' : 'Ajouter un devis signé',
     body: `<form class="form">
       ${field('Numéro du devis', `<input name="numero" value="${esc(cur.numero)}">`)}
       ${field('Date de signature', `<input name="dateSignature" type="date" value="${esc(cur.dateSignature)}">`)}
+      ${field('Date de réalisation prévue', `<input name="datePrevue" type="date" value="${esc(cur.datePrevue || '')}">`, 'Facultatif. Le devis est suivi dans ce mois-là (sinon dans le mois de signature), pour comparer le travail prévu à l\'argent encaissé.')}
       ${field('Montant HT (€)', `<input name="montantHT" inputmode="decimal" required value="${esc(cur.montantHT)}">`)}
       <div class="field"><span>Devis signé (PDF ou photo)</span><div id="fp"></div></div>
       <div class="form-actions">${d ? '<button type="button" class="btn danger" data-del>Supprimer</button>' : ''}<span class="spacer"></span>
@@ -170,7 +171,7 @@ function openDevisForm(m, d = null) {
     e.preventDefault();
     const fd = Object.fromEntries(new FormData(e.target));
     const ids = await fp.commit();
-    const rec = { id: d ? d.id : uid(), numero: fd.numero, dateSignature: fd.dateSignature, montantHT: num(fd.montantHT), fileId: ids[0] || null };
+    const rec = { id: d ? d.id : uid(), numero: fd.numero, dateSignature: fd.dateSignature, datePrevue: fd.datePrevue || '', montantHT: num(fd.montantHT), fileId: ids[0] || null };
     m.devis = d ? m.devis.map((x) => (x.id === d.id ? rec : x)) : [...(m.devis || []), rec];
     await saveMission(m); await fp.cleanup(); modal.close(); toast('Devis enregistré'); hooks.render();
   });

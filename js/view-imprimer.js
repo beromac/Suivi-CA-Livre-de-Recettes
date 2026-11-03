@@ -1,6 +1,6 @@
 // Impression : récapitulatif, livres des recettes / dépenses et justificatifs, par mois ou par année.
 import { state } from './state.js';
-import { MOIS, CATEGORIES, HORS_DEPENSES, recettes, depenses, sumRecettes, summarize, summarizeYear, expenseAmounts, margeTva, rateFor, round2 } from './calc.js';
+import { MOIS, CATEGORIES, HORS_DEPENSES, recettes, depenses, sumRecettes, summarize, summarizeYear, expenseAmounts, margeTva, rateFor, round2, suiviMois } from './calc.js';
 import { esc, eur, fmtDate, today, pct } from './util.js';
 import { getFile, pdfToImages } from './files.js';
 import { toast } from './ui.js';
@@ -64,6 +64,9 @@ function recapSheet(year, month) {
     return { land: false, html: `${docHead('Récapitulatif annuel', year, 0)}
       <div class="table-wrap"><table><thead><tr><th>Mois</th><th>Recettes HT</th><th>Dépenses HT</th><th>URSSAF (${pct(x.rate)} %)</th><th>Trésorerie</th><th>Vir. perso</th></tr></thead>
       <tbody>${rows}</tbody><tfoot><tr><td>TOTAL</td><td class="num">${eur(x.recettesHT)}</td><td class="num">${eur(x.depensesHT)}</td><td class="num">${eur(x.urssafDu)}</td><td class="num">${eur(x.tresorerie)}</td><td class="num">${eur(x.perso)}</td></tr></tfoot></table></div>
+      <h2>Travail prévu et argent encaissé</h2>
+      <div class="table-wrap"><table><thead><tr><th>Mois</th><th>Devis prévus HT</th><th>Facturé HT</th><th>Encaissé HT</th><th>Écart cumulé</th></tr></thead><tbody>
+      ${suiviMois(data, year).map((x) => `<tr><td>${MOIS[x.month - 1]}</td><td class="num">${eur(x.devisHT)}</td><td class="num">${eur(x.factureHT)}</td><td class="num">${eur(x.encaisseHT)}</td><td class="num">${eur(x.ecartCumule)}</td></tr>`).join('')}</tbody></table></div>
       <p class="muted">Recettes = factures encaissées dans le mois (date d'encaissement), hors TVA. Dépenses hors paiements URSSAF et virements personnels. Trésorerie = recettes − dépenses − cotisations URSSAF dues.</p>
       <p>Cotisations URSSAF payées sur l'année : <strong>${eur(x.urssafPaye)}</strong> · reste estimé : <strong>${eur(round2(x.urssafDu - x.urssafPaye))}</strong>
       ${t.seuil ? `<br>Marge avant le seuil de franchise de TVA (${eur(t.seuil)}) : <strong>${t.reste >= 0 ? eur(t.reste) : 'seuil dépassé de ' + eur(-t.reste)}</strong>${t.reste >= 0 && t.jours != null ? ` (≈ ${String(t.jours).replace('.', ',')} jours à ${eur(t.tjm)})` : ''}` : ''}</p>` };

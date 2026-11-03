@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { MOIS, summarizeYear, enAttente, margeTva } from './calc.js';
+import { MOIS, summarizeYear, enAttente, margeTva, suiviMois } from './calc.js';
 import { esc, eur, fmtDate, pct } from './util.js';
 import { openEncaisser } from './view-missions.js';
 
@@ -9,6 +9,8 @@ export function render() {
   const t = ys.total;
   const att = enAttente(data);
   const tva = margeTva(data, year);
+  const suivi = suiviMois(data, year);
+  const stot = (k) => suivi.reduce((a, x) => a + x[k], 0);
   const lb = data.settings.lastBackup;
   const days = lb ? Math.floor((Date.now() - new Date(lb)) / 86400000) : null;
   const backupWarn = (days === null || days > 30)
@@ -40,6 +42,14 @@ export function render() {
       <thead><tr><th>Mois</th><th class="num">Recettes HT</th><th class="num">Dépenses HT</th><th class="num">URSSAF dû</th><th class="num">Trésorerie</th><th class="num">Vir. perso</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr><td>TOTAL</td><td class="num">${eur(t.recettesHT)}</td><td class="num">${eur(t.depensesHT)}</td><td class="num">${eur(t.urssafDu)}</td><td class="num">${eur(t.tresorerie)}</td><td class="num">${eur(t.perso)}</td></tr></tfoot>
+    </table></div>
+    <h2>Travail prévu (devis) et argent encaissé</h2>
+    <p class="muted">Un devis compte dans le mois où le travail est prévu (ou signé) ; l'argent compte dans le mois où il est encaissé. L'écart cumulé est ce qui est travaillé mais pas encore en trésorerie.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Mois</th><th class="num">Devis prévus HT</th><th class="num">Facturé HT</th><th class="num">Encaissé HT</th><th class="num">Écart cumulé</th></tr></thead>
+      <tbody>${suivi.map((x) => `<tr><td>${MOIS[x.month - 1]}${x.devis.length ? `<details><summary class="muted">${x.devis.length} devis</summary>${x.devis.map((l) => `<div class="muted"><a href="#/mission/${l.mission.id}">${esc(l.mission.client)}</a> ${eur(l.montant)}${Object.keys(l.encaissements).length ? ' → encaissé ' + Object.entries(l.encaissements).map(([k, v]) => `${MOIS[Number(k.slice(5)) - 1].toLowerCase()} ${k.slice(0, 4)} (${eur(v)})`).join(', ') : ' → pas encore encaissé'}</div>`).join('')}</details>` : ''}</td>
+        <td class="num">${eur(x.devisHT)}</td><td class="num">${eur(x.factureHT)}</td><td class="num">${eur(x.encaisseHT)}</td><td class="num strong">${eur(x.ecartCumule)}</td></tr>`).join('')}</tbody>
+      <tfoot><tr><td>TOTAL</td><td class="num">${eur(stot('devisHT'))}</td><td class="num">${eur(stot('factureHT'))}</td><td class="num">${eur(stot('encaisseHT'))}</td><td class="num">${eur(suivi[11].ecartCumule)}</td></tr></tfoot>
     </table></div>
     <h2>Factures en attente d'encaissement <span class="badge">${att.length}</span></h2>
     ${att.length ? `<div class="table-wrap"><table><thead><tr><th>N°</th><th>Client</th><th>Émise le</th><th class="num">TTC</th><th></th></tr></thead><tbody>${attRows}</tbody></table></div>
