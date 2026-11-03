@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Livre de recettes</title>
+  <meta name="description" content="Livre des recettes, dépenses, devis, factures et déclaration URSSAF — données conservées sur votre appareil.">
+  <meta name="theme-color" content="#0b6e63">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <div id="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#/recap">📒 <span>Livre de recettes</span></a>
+      <div class="year-switch" aria-label="Année">
+        <button type="button" class="icon-btn" id="yearPrev" aria-label="Année précédente">‹</button>
+        <button type="button" class="year-label" id="yearLabel" aria-label="Choisir une année">2026</button>
+        <button type="button" class="icon-btn" id="yearNext" aria-label="Année suivante">›</button>
+      </div>
+      <a class="icon-btn gear" href="#/reglages" aria-label="Réglages">⚙</a>
+    </header>
+    <nav class="mainnav" id="mainnav" aria-label="Navigation">
+      <a data-nav="recap" href="#/recap"><i>📊</i><span>Récap</span></a>
+      <a data-nav="missions" href="#/missions"><i>📁</i><span>Missions</span></a>
+      <a data-nav="recettes" href="#/recettes"><i>💶</i><span>Recettes</span></a>
+      <a data-nav="depenses" href="#/depenses"><i>🧾</i><span>Dépenses</span></a>
+      <a data-nav="urssaf" href="#/urssaf"><i>🏛</i><span>URSSAF</span></a>
+      <a data-nav="imprimer" href="#/imprimer"><i>🖨</i><span>Imprimer</span></a>
+    </nav>
+    <main id="app" tabindex="-1"></main>
+  </div>
+
+  <div id="modals"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- Aperçu d'impression (récapitulatifs et justificatifs) -->
+  <div id="print-overlay" hidden>
+    <div class="pv-toolbar">
+      <button type="button" class="btn" id="pvClose">← Retour</button>
+      <span id="pvStatus" class="muted"></span>
+      <span class="spacer"></span>
+      <button type="button" class="btn primary" id="pvPrint" disabled>🖨 Imprimer / Enregistrer en PDF</button>
+    </div>
+    <div id="print-root"></div>
+  </div>
+
+  <noscript><p style="padding:1rem">Cette application a besoin de JavaScript.</p></noscript>
+  <script src="vendor/jszip.min.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "livre-recettes",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Livre des recettes et dépenses, devis, factures et déclaration URSSAF (application web installable).",
+  "scripts": {
+    "test": "node --test tests/calc.test.mjs tests/sync.test.mjs",
+    "start": "python3 -m http.server 8080"
+  }
+}

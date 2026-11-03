@@ -1,0 +1,16 @@
+{
+  "name": "Livre de recettes",
+  "short_name": "Recettes",
+  "description": "Livre des recettes et dépenses, devis, factures et déclaration URSSAF.",
+  "lang": "fr",
+  "start_url": "./index.html#/recap",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f6f5",
+  "theme_color": "#0b6e63",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
