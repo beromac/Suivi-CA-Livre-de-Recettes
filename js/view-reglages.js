@@ -1,0 +1,147 @@
+import { state, hooks, saveSettings, load } from './state.js';
+import { rateFor } from './calc.js';
+import * as db from './db.js';
+import { esc, fmtDate } from './util.js';
+import { toast, confirmBox, field } from './ui.js';
+import { exportBackup, importBackup, exportCSV } from './backup.js';
+import { getConfig, setConfig, getStatus, syncNow, client, isConfigured, startAuto } from './sync.js';
+
+const num = (v) => (v === '' || v == null ? 0 : Number(String(v).replace(',', '.')));
+
+export function render() {
+  const { year, data } = state;
+  const s = data.settings;
+  const cfg = getConfig() || { owner: '', repo: '', branch: 'main', token: '', auto: true };
+  const st = getStatus();
+  const lb = s.lastBackup ? fmtDate(s.lastBackup.slice(0, 10)) : 'jamais';
+
+  const html = `
+    <h1>Réglages</h1>
+
+    <form class="form card" id="f-profil">
+      <h2>Mon activité</h2>
+      <p class="muted">Ces informations apparaissent en en-tête des documents imprimés.</p>
+      ${field('Nom / raison sociale', `<input name="nom" value="${esc(s.nom)}">`)}
+      ${field('SIRET', `<input name="siret" inputmode="numeric" value="${esc(s.siret)}">`)}
+      ${field('Adresse', `<input name="adresse" value="${esc(s.adresse)}">`)}
+      ${field('Activité', `<input name="activite" value="${esc(s.activite)}">`)}
+      <div class="form-actions"><button class="btn primary">Enregistrer</button></div>
+    </form>
+
+    <form class="form card" id="f-calc">
+      <h2>Cotisations et paramètres</h2>
+      ${field('Taux de cotisations URSSAF par défaut (%)', `<input name="defaultRate" inputmode="decimal" value="${esc(s.defaultRate)}">`, 'Repris de votre fichier Excel : 21,3 %. Vérifiez le taux de votre activité sur autoentrepreneur.urssaf.fr.')}
+      ${field(`Taux spécifique pour ${year} (%)`, `<input name="rateYear" inputmode="decimal" placeholder="${esc(rateFor(s, year))}" value="${esc((s.rates || {})[year] ?? '')}">`, 'Laissez vide pour utiliser le taux par défaut. Utile si le taux change d\'une année à l\'autre.')}
+      ${field('Périodicité de déclaration', `<select name="periodicite"><option value="mensuelle"${s.periodicite === 'mensuelle' ? ' selected' : ''}>Mensuelle</option><option value="trimestrielle"${s.periodicite === 'trimestrielle' ? ' selected' : ''}>Trimestrielle</option></select>`)}
+      ${field('Taux de TVA proposé sur les nouvelles factures (%)', `<input name="tvaTaux" inputmode="decimal" value="${esc(s.tvaTaux)}">`, '0 = franchise en base de TVA (aucune TVA facturée).')}
+      ${field('Indemnité kilométrique proposée (€/km)', `<input name="kmRate" inputmode="decimal" value="${esc(s.kmRate)}">`)}
+      ${field('Seuil de franchise de TVA (€)', `<input name="seuilTva" inputmode="decimal" value="${esc(s.seuilTva)}">`, 'Repris de votre Excel (124 jours × 300 € = 37 200 €). Mettez 0 pour masquer l\'indicateur.')}
+      ${field('Taux journalier moyen (€)', `<input name="tjm" inputmode="decimal" value="${esc(s.tjm)}">`, 'Sert à convertir la marge avant le seuil en nombre de jours.')}
+      <div class="form-actions"><button class="btn primary">Enregistrer</button></div>
+    </form>
+
+    <div class="card form" id="backup">
+      <h2>Sauvegarde</h2>
+      <p class="muted">Vos données sont conservées sur cet appareil. Dernière sauvegarde : <strong>${lb}</strong>. Le fichier .zip contient toutes les données et tous les justificatifs.</p>
+      <div class="form-actions" style="justify-content:flex-start">
+        <button class="btn primary" id="b-export">💾 Télécharger une sauvegarde (.zip)</button>
+        <label class="btn">📥 Restaurer une sauvegarde<input type="file" id="b-import" accept=".zip,application/zip" hidden></label>
+        <button class="btn" id="b-csv">📄 Exporter ${year} en CSV (Excel)</button>
+      </div>
+    </div>
+
+    <form class="form card" id="f-sync">
+      <h2>Synchronisation PC ⇄ Android (GitHub)</h2>
+      <p class="muted">Pour retrouver les mêmes données sur plusieurs appareils : créez un dépôt GitHub <strong>privé</strong> réservé à vos données, puis renseignez-le ici sur chaque appareil. Détails dans le fichier README.</p>
+      ${field('Compte GitHub (propriétaire du dépôt)', `<input name="owner" value="${esc(cfg.owner)}" autocomplete="off" placeholder="mon-compte">`)}
+      ${field('Nom du dépôt privé', `<input name="repo" value="${esc(cfg.repo)}" autocomplete="off" placeholder="mes-donnees-compta">`)}
+      ${field('Branche', `<input name="branch" value="${esc(cfg.branch || 'main')}" autocomplete="off">`)}
+      ${field('Jeton d\'accès (fine-grained token)', `<input name="token" type="password" value="${esc(cfg.token)}" autocomplete="off" placeholder="github_pat_…">`, 'Droit « Contents : Read and write » sur ce seul dépôt. Il reste enregistré uniquement sur cet appareil.')}
+      <label class="check"><input type="checkbox" name="auto" ${cfg.auto !== false ? 'checked' : ''}> Synchroniser automatiquement après chaque modification</label>
+      <div id="syncStatus" class="muted">${st ? (st.ok ? `✅ Dernière synchronisation : ${new Date(st.at).toLocaleString('fr-FR')}` : `⚠ Échec (${new Date(st.at).toLocaleString('fr-FR')}) : ${esc(st.error)}`) : 'Jamais synchronisé sur cet appareil.'}</div>
+      <div class="form-actions" style="justify-content:flex-start">
+        <button class="btn primary" id="s-save">Enregistrer et synchroniser</button>
+        <button type="button" class="btn" id="s-now"${isConfigured() ? '' : ' disabled'}>🔄 Synchroniser maintenant</button>
+        <button type="button" class="btn danger" id="s-off"${isConfigured() ? '' : ' disabled'}>Désactiver</button>
+      </div>
+    </form>
+
+    <div class="card form">
+      <h2>Stockage</h2>
+      <p class="muted" id="storage">Calcul…</p>
+      <div class="form-actions" style="justify-content:flex-start"><button class="btn danger" id="wipe">Effacer toutes les données de cet appareil</button></div>
+    </div>`;
+
+  return {
+    html,
+    bind(root) {
+      const $ = (sel) => root.querySelector(sel);
+      const fdOf = (e) => Object.fromEntries(new FormData(e.target));
+
+      $('#f-profil').addEventListener('submit', async (e) => {
+        e.preventDefault(); await saveSettings(fdOf(e)); toast('Enregistré');
+      });
+      $('#f-calc').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const f = fdOf(e);
+        const rates = { ...(s.rates || {}) };
+        if (f.rateYear === '') delete rates[year]; else rates[year] = num(f.rateYear);
+        await saveSettings({ defaultRate: num(f.defaultRate), rates, periodicite: f.periodicite, tvaTaux: num(f.tvaTaux), kmRate: num(f.kmRate), seuilTva: num(f.seuilTva), tjm: num(f.tjm) });
+        toast('Paramètres enregistrés');
+      });
+
+      $('#b-export').addEventListener('click', async (e) => {
+        e.target.disabled = true;
+        try { await exportBackup(); toast('Sauvegarde téléchargée'); hooks.render(); } catch (err) { toast(`Échec : ${err.message}`, 'err'); e.target.disabled = false; }
+      });
+      $('#b-csv').addEventListener('click', () => exportCSV(year));
+      $('#b-import').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (!(await confirmBox('Restaurer cette sauvegarde REMPLACERA toutes les données actuelles de cet appareil. Continuer ?', { ok: 'Restaurer', danger: true }))) { e.target.value = ''; return; }
+        try { await importBackup(file); toast('Sauvegarde restaurée'); hooks.render(); } catch (err) { toast(`Échec : ${err.message}`, 'err'); }
+      });
+
+      const showStatus = (msg) => { $('#syncStatus').textContent = msg; };
+      const doSync = async () => {
+        try {
+          const r = await syncNow(showStatus);
+          toast(`Synchronisé — ${r.missions} mission(s), ${r.depenses} dépense(s)`);
+        } catch (err) { showStatus(`⚠ ${err.message}`); toast(err.message, 'err'); }
+      };
+      $('#f-sync').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const f = fdOf(e);
+        const c = { owner: f.owner.trim(), repo: f.repo.trim(), branch: (f.branch || 'main').trim(), token: f.token.trim(), auto: 'auto' in f };
+        if (!c.owner || !c.repo || !c.token) { toast('Renseignez le compte, le dépôt et le jeton', 'err'); return; }
+        showStatus('Vérification de l\'accès au dépôt…');
+        try {
+          const info = await client(c).check();
+          if (!info.private && !(await confirmBox(`Le dépôt ${info.name} est PUBLIC : vos données de facturation seraient visibles de tous. Utilisez un dépôt privé. Continuer quand même ?`, { ok: 'Continuer', danger: true }))) { showStatus(''); return; }
+        } catch (err) { showStatus(`⚠ ${err.message}`); toast(err.message, 'err'); return; }
+        const first = !isConfigured();
+        setConfig(c);
+        if (first) startAuto((err) => toast(`Synchronisation : ${err.message}`, 'err'));
+        await doSync();
+      });
+      $('#s-now').addEventListener('click', doSync);
+      $('#s-off').addEventListener('click', async () => {
+        if (await confirmBox('Désactiver la synchronisation sur cet appareil ? Les données restent ici et sur GitHub.', { ok: 'Désactiver' })) { setConfig(null); hooks.render(); }
+      });
+
+      $('#wipe').addEventListener('click', async () => {
+        if (!(await confirmBox('Effacer TOUTES les données de cet appareil (missions, dépenses, justificatifs, réglages) ? Faites une sauvegarde avant. Si la synchronisation est active, elles restent sur GitHub.', { ok: 'Tout effacer', danger: true }))) return;
+        await Promise.all(['missions', 'depenses', 'files', 'meta'].map((x) => db.clear(x)));
+        await load(); toast('Données effacées'); hooks.render();
+      });
+
+      if (navigator.storage && navigator.storage.estimate) {
+        navigator.storage.estimate().then(async ({ usage, quota }) => {
+          const persisted = navigator.storage.persisted ? await navigator.storage.persisted() : null;
+          const mb = (n) => `${(n / 1048576).toFixed(1).replace('.', ',')} Mo`;
+          $('#storage').textContent = `Espace utilisé : ${mb(usage || 0)} sur ${mb(quota || 0)} disponibles.${persisted === false ? ' Le navigateur peut effacer ces données s\'il manque de place : pensez à sauvegarder ou synchroniser.' : ''}`;
+        }).catch(() => { $('#storage').textContent = ''; });
+      }
+    },
+  };
+}
