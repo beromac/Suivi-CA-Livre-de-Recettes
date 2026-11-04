@@ -129,7 +129,7 @@ function depensesSheet(year, month) {
   const amounts = (a) => (tvaOn ? `<td class="num">${eur(a.ht)}</td><td class="num">${eur(a.tva)}</td><td class="num">${eur(a.ttc)}</td>` : `<td class="num">${eur(a.ttc)}</td>`);
   const row = (d) => {
     const a = expenseAmounts(d, tvaOn);
-    return `<tr><td>${fmtDate(d.date)}</td><td>${esc(d.reference || '')}</td><td>${esc(d.fournisseur)}<div class="muted">${esc(d.designation || '')}${d.categorie === 'km' ? (d.bareme ? ` (${d.km} km, barème ${baremeFor(String(d.date).slice(0, 4)).year}, ${d.cv} CV${d.cv >= 7 ? ' et plus' : d.cv <= 3 ? ' et moins' : ''}${d.elec ? ' électrique' : ''})` : ` (${d.km} km × ${d.tauxKm} €)`) : ''}</div></td>
+    return `<tr><td>${fmtDate(d.date)}</td><td>${esc(d.reference || '')}</td><td>${esc(d.fournisseur)}<div class="muted">${esc(d.designation || '')}${d.categorie === 'km' ? (d.bareme ? ` (${d.jours ? `${d.jours} j, ` : ''}${d.km} km, barème ${baremeFor(String(d.date).slice(0, 4)).year}, ${d.cv} CV${d.cv >= 7 ? ' et plus' : d.cv <= 3 ? ' et moins' : ''}${d.elec ? ' électrique' : ''})` : ` (${d.jours ? `${d.jours} j, ` : ''}${d.km} km × ${d.tauxKm} €)`) : ''}</div></td>
       <td>${esc(CATEGORIES[d.categorie] || d.categorie)}</td>${amounts(a)}<td>${esc(d.mode || '')}</td><td>${(d.fileIds || []).length ? 'oui' : 'non'}</td></tr>`;
   };
   const totals = (rs) => {

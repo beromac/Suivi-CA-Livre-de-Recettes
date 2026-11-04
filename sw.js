@@ -1,5 +1,5 @@
 // Mode hors-ligne : l'application s'ouvre sans réseau une fois visitée.
-const CACHE = 'livre-recettes-v11';
+const CACHE = 'livre-recettes-v12';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/main.js', 'js/db.js', 'js/state.js', 'js/calc.js', 'js/util.js', 'js/files.js', 'js/ui.js', 'js/backup.js',

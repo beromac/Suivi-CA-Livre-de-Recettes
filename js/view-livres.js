@@ -108,10 +108,13 @@ export function openDepenseForm(d = null, month = 0) {
     body: `<form class="form">
       ${field('Date *', `<input name="date" type="date" required value="${esc(cur.date)}">`)}
       ${field('Catégorie', `<select name="categorie">${options(Object.entries(CATEGORIES), cur.categorie)}</select>`)}
+      ${field('Magasin / mission (bénéficiaire)', `<select name="missionId"><option value="">— autre : saisie libre —</option>${[...data.missions].sort((a, b) => String(a.client).localeCompare(String(b.client))).map((m) => `<option value="${esc(m.id)}"${cur.missionId === m.id ? ' selected' : ''}>${esc(m.client)}${m.ref ? ` (${esc(m.ref)})` : ''}${Number(m.kmAR) > 0 ? ` — ${esc(String(m.kmAR).replace('.', ','))} km A/R` : ''}</option>`).join('')}</select>`, 'Choisir un magasin remplit automatiquement le bénéficiaire.')}
       ${field('Fournisseur / bénéficiaire *', `<input name="fournisseur" required value="${esc(cur.fournisseur)}" autocomplete="off">`)}
       ${field('Désignation', `<input name="designation" value="${esc(cur.designation)}">`)}
       ${field('N° de pièce', `<input name="reference" value="${esc(cur.reference || '')}">`)}
       <div id="kmBox" hidden>
+        ${field('Nombre de jours dépannés', `<input name="jours" inputmode="decimal" value="${esc(cur.jours || '')}">`, 'Avec un magasin choisi ci-dessus : kilomètres = jours × km aller-retour de la mission.')}
+        <p class="muted" id="kmHint" style="margin:-.4rem 0 0"></p>
         ${field('Kilomètres', `<input name="km" inputmode="decimal" value="${esc(cur.km)}">`)}
         ${data.settings.kmCv || cur.bareme ? `<label class="check"><input type="checkbox" name="bareme" ${cur.bareme ? 'checked' : ''}> Calcul automatique selon le barème kilométrique (${esc(CV_LABELS[clampCv(cur.cv || data.settings.kmCv)])}${(d ? cur.elec : data.settings.kmElec) ? ', électrique' : ''})</label>` : '<p class="muted">Astuce : renseignez la puissance de votre véhicule dans les Réglages pour calculer l\'indemnité automatiquement.</p>'}
         <div id="kmAuto" hidden><p class="notice" id="kmCalc" style="margin:0"></p></div>
@@ -162,6 +165,23 @@ export function openDepenseForm(d = null, month = 0) {
   const fourn = modal.$('[name=fournisseur]');
   let auto = !d && cur.categorie === 'perso' && !fourn.value && benef ? (fourn.value = benef, true) : false;
   fourn.addEventListener('input', () => { auto = false; });
+  // Magasin / mission : bénéficiaire + kilomètres = jours × aller-retour.
+  const msel = modal.$('[name=missionId]'), jours = modal.$('[name=jours]'), kmIn = modal.$('[name=km]');
+  const majKm = () => {
+    const m = data.missions.find((x) => x.id === msel.value), j = num(jours.value), hint = modal.$('#kmHint');
+    if (m && Number(m.kmAR) > 0 && j > 0) {
+      const km = Math.round(j * Number(m.kmAR) * 100) / 100;
+      kmIn.value = String(km).replace('.', ',');
+      hint.textContent = `${String(j).replace('.', ',')} jour(s) × ${String(m.kmAR).replace('.', ',')} km A/R = ${String(km).replace('.', ',')} km`;
+    } else hint.textContent = m && !(Number(m.kmAR) > 0) ? 'Les km aller-retour de ce magasin ne sont pas renseignés dans la fiche mission : saisissez les kilomètres à la main.' : '';
+    if (cb && cb.checked) calcKm();
+  };
+  msel.addEventListener('change', () => {
+    const m = data.missions.find((x) => x.id === msel.value);
+    if (m) { fourn.value = m.client; auto = false; }
+    majKm();
+  });
+  jours.addEventListener('input', majKm);
   sel.addEventListener('change', () => {
     if (!benef || d) return;
     if (sel.value === 'perso' && !fourn.value) { fourn.value = benef; auto = true; }
@@ -185,7 +205,8 @@ export function openDepenseForm(d = null, month = 0) {
       id: d ? d.id : uid(), date: fd.date, categorie: fd.categorie, fournisseur: fd.fournisseur, designation: fd.designation,
       reference: fd.reference, mode: fd.mode, fileIds,
       montantTTC: ttc, montantTVA: isKm ? 0 : (fd.montantTVA !== undefined ? num(fd.montantTVA) : num(d && d.montantTVA)),
-      ...(isKm ? { km: num(fd.km), tauxKm: auto ? 0 : num(fd.tauxKm), bareme: auto, ...(auto ? kmVehicule() : {}) } : {}),
+      missionId: fd.missionId || null,
+      ...(isKm ? { jours: num(fd.jours) || null, km: num(fd.km), tauxKm: auto ? 0 : num(fd.tauxKm), bareme: auto, ...(auto ? kmVehicule() : {}) } : {}),
     };
     await saveDepense(rec); await fp.cleanup(); modal.close(); toast('Dépense enregistrée'); hooks.render();
   });

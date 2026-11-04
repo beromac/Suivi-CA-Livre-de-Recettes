@@ -89,7 +89,7 @@ export function renderDetail(params) {
     <p><a href="#/missions">← Missions</a></p>
     <div class="page-head"><h1>${esc(m.client)}</h1>
       <div><button class="btn" data-edit>Modifier</button> <button class="btn danger" data-del>Supprimer</button></div></div>
-    <p class="muted">${esc([m.ref, m.nature].filter(Boolean).join(' · '))}${m.adresse ? `<br>${esc(m.adresse)}` : ''}${m.siret ? `<br>SIRET ${esc(m.siret)}` : ''}${m.notes ? `<br>${esc(m.notes)}` : ''}</p>
+    <p class="muted">${esc([m.ref, m.nature].filter(Boolean).join(' · '))}${m.adresse ? `<br>${esc(m.adresse)}` : ''}${m.siret ? `<br>SIRET ${esc(m.siret)}` : ''}${Number(m.kmAR) > 0 ? `<br>Trajet aller-retour : ${esc(String(m.kmAR).replace('.', ','))} km` : ''}${m.notes ? `<br>${esc(m.notes)}` : ''}</p>
     <div class="cards">
       <div class="card"><div class="card-label">Devis signé(s) HT</div><div class="card-value">${eur(s.devisHT)}</div></div>
       <div class="card"><div class="card-label">Facturé HT</div><div class="card-value">${eur(s.factureHT)}</div><div class="muted">reste à facturer ${eur(s.resteAFacturer)}</div></div>
@@ -123,7 +123,7 @@ export function renderDetail(params) {
 /* ===================== Formulaires ===================== */
 export function openMissionForm(m = null) {
   const isNew = !m;
-  const cur = m || { client: '', ref: '', adresse: '', siret: '', nature: '', notes: '', annee: state.year };
+  const cur = m || { client: '', ref: '', adresse: '', siret: '', nature: '', notes: '', kmAR: '', annee: state.year };
   const modal = openModal({
     title: isNew ? 'Nouvelle mission' : 'Modifier la mission',
     body: `<form class="form">
@@ -132,6 +132,7 @@ export function openMissionForm(m = null) {
       ${field('Nature de la prestation', `<input name="nature" value="${esc(cur.nature)}">`)}
       ${field('Adresse du client', `<input name="adresse" value="${esc(cur.adresse)}">`)}
       ${field('SIRET du client', `<input name="siret" inputmode="numeric" value="${esc(cur.siret)}">`)}
+      ${field('Kilomètres aller-retour jusqu\'à ce client / magasin', `<input name="kmAR" inputmode="decimal" value="${esc(cur.kmAR || '')}">`, 'Sert à calculer automatiquement les frais kilométriques : nombre de jours dépannés × ce nombre de km.')}
       ${field('Année de la mission', `<input name="annee" type="number" min="2000" max="2100" required value="${esc(cur.annee)}">`)}
       ${field('Notes', `<textarea name="notes" rows="2">${esc(cur.notes)}</textarea>`)}
       <div class="form-actions"><button type="button" class="btn" data-close2>Annuler</button><button class="btn primary">Enregistrer</button></div></form>`,
@@ -140,7 +141,7 @@ export function openMissionForm(m = null) {
   modal.$('form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = Object.fromEntries(new FormData(e.target));
-    const mission = { ...(m || { id: uid(), devis: [], factures: [], created: new Date().toISOString() }), ...fd, annee: Number(fd.annee) };
+    const mission = { ...(m || { id: uid(), devis: [], factures: [], created: new Date().toISOString() }), ...fd, annee: Number(fd.annee), kmAR: num(fd.kmAR) };
     await saveMission(mission);
     modal.close(); toast('Mission enregistrée');
     if (isNew) location.hash = `#/mission/${mission.id}`; else hooks.render();
