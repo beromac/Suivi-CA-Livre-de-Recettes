@@ -77,16 +77,18 @@ export async function saveSettings(patch) {
 export const releveId = (year, month) => `${year}-${String(month).padStart(2, '0')}`;
 export const releveOf = (year, month) => state.data.releves.find((r) => r.id === releveId(year, month));
 
-export async function saveReleve(year, month, fileIds) {
-  await db.put('releves', { id: releveId(year, month), year: Number(year), month: Number(month), fileIds, updated: now() });
-  await load();
-  hooks.onChange();
-}
-
-export async function deleteReleve(year, month) {
+/** Crée / met à jour le relevé d'un mois (fichiers et cases « encaissements sur le relevé précédent / suivant »). Supprimé s'il est vide. */
+export async function updateReleve(year, month, patch) {
   const id = releveId(year, month);
-  await db.del('releves', id);
-  await addTombstone(id);
+  const cur = releveOf(year, month);
+  const rec = { id, year: Number(year), month: Number(month), fileIds: [], surPrecedent: false, surSuivant: false, ...(cur || {}), ...patch, updated: now() };
+  if (!rec.fileIds.length && !rec.surPrecedent && !rec.surSuivant) {
+    if (!cur) return;
+    await db.del('releves', id);
+    await addTombstone(id);
+  } else {
+    await db.put('releves', rec);
+  }
   await load();
   hooks.onChange();
 }

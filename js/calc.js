@@ -264,3 +264,54 @@ export function simulationTva(data, year) {
   const tot = (k) => round2(months.reduce((a, x) => a + x[k], 0));
   return { taux, incluse, reel, months, total: { collectee: tot('collectee'), deductible: tot('deductible'), aReverser: tot('aReverser') } };
 }
+
+/**
+ * Relevés de banque à imprimer pour un mois (ou toute l'année) : le relevé du mois lui-même, plus celui du mois
+ * précédent / suivant quand la case correspondante est cochée (des encaissements y figurent). Gère le changement d'année.
+ */
+export function relevesAImprimer(releves, year, month) {
+  const byId = new Map(releves.map((r) => [r.id, r]));
+  const key = (y, m) => `${y}-${pad2(m)}`;
+  const shift = (y, m, d) => { let mm = m + d; let yy = y; if (mm < 1) { mm = 12; yy -= 1; } if (mm > 12) { mm = 1; yy += 1; } return { y: yy, m: mm }; };
+  const out = new Map();
+  const add = (y, m, raison) => {
+    const k = key(y, m);
+    if (!out.has(k)) out.set(k, { id: k, year: y, month: m, fileIds: (byId.get(k) || {}).fileIds || [], raisons: [] });
+    if (raison) out.get(k).raisons.push(raison);
+  };
+  const months = month ? [Number(month)] : Array.from({ length: 12 }, (_, i) => i + 1);
+  for (const m of months) {
+    const r = byId.get(key(year, m));
+    if (!r) continue;
+    if ((r.fileIds || []).length) add(year, m, null);
+    if (r.surPrecedent) { const t = shift(year, m, -1); add(t.y, t.m, { mois: m, year }); }
+    if (r.surSuivant) { const t = shift(year, m, 1); add(t.y, t.m, { mois: m, year }); }
+  }
+  return [...out.values()].sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/** CA encaissé (HT) de l'année par client, trié du plus important au plus petit. Au-delà de `max` clients, le reste est regroupé en « Autres ». */
+export function caParClient(data, year, max = 7) {
+  const map = new Map();
+  for (const r of recettes(data, year)) {
+    const name = (r.mission.client || '').trim() || 'Sans nom';
+    const key = name.toLowerCase();
+    const cur = map.get(key) || { client: name, montant: 0, missionIds: new Set() };
+    cur.montant = round2(cur.montant + r.ht);
+    cur.missionIds.add(r.mission.id);
+    map.set(key, cur);
+  }
+  let list = [...map.values()].filter((x) => x.montant > 0).sort((a, b) => b.montant - a.montant || a.client.localeCompare(b.client));
+  if (list.length > max) {
+    const rest = list.slice(max);
+    list = [...list.slice(0, max), { client: 'Autres', montant: round2(rest.reduce((s, x) => s + x.montant, 0)), autres: rest.length, missionIds: new Set() }];
+  }
+  const total = round2(list.reduce((s, x) => s + x.montant, 0));
+  return list.map((x) => ({ client: x.client, montant: x.montant, part: total ? x.montant / total : 0, autres: x.autres || 0, missionId: x.missionIds.size === 1 ? [...x.missionIds][0] : null }));
+}
+
+/** CA encaissé cumulé mois par mois (pour suivre la progression vers le seuil de TVA). */
+export function caCumule(data, year) {
+  let cum = 0;
+  return summarizeYear(data, year).months.map((m) => { cum = round2(cum + m.recettesHT); return { month: m.month, cumul: cum }; });
+}

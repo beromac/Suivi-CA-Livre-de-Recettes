@@ -163,3 +163,26 @@ body.modal-open { overflow: hidden; }
 .sheet td, .sheet th { overflow-wrap: anywhere; }
 #print-root .sheet { overflow-x: auto; }
 @media print { #print-root .sheet { overflow: visible; } }
+
+/* Relevés de banque : cases « mois précédent / suivant » */
+.flags { display: flex; flex-wrap: wrap; gap: .1rem .7rem; margin-top: .25rem; }
+.flag { font-size: .78rem; color: var(--muted); white-space: nowrap; }
+
+/* Graphiques */
+.charts { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); margin: .6rem 0 1.2rem; }
+.chart-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: .8rem 1rem; box-shadow: var(--shadow); break-inside: avoid; }
+.chart-card:nth-child(3) { grid-column: 1 / -1; }
+.chart-card h3 { margin: 0 0 .5rem; font-size: 1rem; }
+svg.chart { width: 100%; height: auto; display: block; color: var(--ink); }
+svg.chart .grid { stroke: var(--line); stroke-width: 1; }
+svg.chart .tick { fill: var(--muted); font-size: 11px; }
+svg.chart .donut-v { fill: var(--ink); font-size: 15px; font-weight: 700; }
+.legend { display: flex; flex-wrap: wrap; gap: .3rem 1rem; margin-top: .4rem; font-size: .85rem; color: var(--muted); }
+.legend i, .donut-legend i { display: inline-block; width: .8rem; height: .8rem; border-radius: 3px; margin-right: .4rem; vertical-align: -1px; flex: none; }
+.donut-wrap { display: flex; flex-wrap: wrap; gap: 1rem 2rem; align-items: center; }
+.donut-wrap svg.chart { width: 220px; flex: none; }
+.donut-legend { list-style: none; margin: 0; padding: 0; flex: 1 1 260px; }
+.donut-legend li { display: flex; align-items: center; gap: .5rem; padding: .3rem 0; border-bottom: 1px solid var(--line); }
+.donut-legend .who { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.donut-legend .pc { width: 4.2rem; color: var(--muted); }
+@media print { .charts { grid-template-columns: 1fr; } .chart-card { box-shadow: none; } }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { recettes, summarize, summarizeYear, periodes, enAttente, nextFactureNumber, factureAmounts, defaultSettings, margeTva, rateFor, suiviMois, simulationTva, isAssujetti, expenseAmounts } from '../js/calc.js';
+import { recettes, summarize, summarizeYear, periodes, enAttente, nextFactureNumber, factureAmounts, defaultSettings, margeTva, rateFor, suiviMois, simulationTva, isAssujetti, expenseAmounts, relevesAImprimer, caParClient, caCumule } from '../js/calc.js';
 
 const fac = (id, ht, enc, extra = {}) => ({ id, numero: id, date: '2026-01-05', montantHT: ht, tvaTaux: 0, dateEncaissement: enc, ...extra });
 const mk = (factures, depenses = [], settings = {}) => ({
@@ -129,4 +129,42 @@ test('franchise en base (case décochée) : aucune TVA, TTC = HT, coût des dép
   // la simulation, elle, continue d'utiliser le « dont TVA » saisi
   assert.equal(simulationTva(d, 2026).months[4].deductible, 20);
   assert.equal(simulationTva(d, 2026).reel, false);
+});
+
+test('relevés à imprimer : le mois + précédent / suivant cochés (y compris à cheval sur deux années)', () => {
+  const r = (y, m, extra = {}) => ({ id: `${y}-${String(m).padStart(2, '0')}`, year: y, month: m, fileIds: [`f${y}${m}`], ...extra });
+  const rel = [r(2025, 12), r(2026, 1, { surPrecedent: true }), r(2026, 2), r(2026, 3, { surSuivant: true }), r(2026, 4), r(2026, 12, { surSuivant: true })];
+  assert.deepEqual(relevesAImprimer(rel, 2026, 2).map((x) => x.id), ['2026-02']);
+  assert.deepEqual(relevesAImprimer(rel, 2026, 3).map((x) => x.id), ['2026-03', '2026-04']);
+  assert.deepEqual(relevesAImprimer(rel, 2026, 1).map((x) => x.id), ['2025-12', '2026-01']);
+  const dec = relevesAImprimer(rel, 2026, 12); assert.deepEqual(dec.map((x) => x.id), ['2026-12', '2027-01']);
+  assert.equal(dec[1].fileIds.length, 0); // le relevé de janvier 2027 n'est pas encore enregistré → sera signalé « manquant »
+  assert.equal(dec[1].raisons[0].mois, 12);
+  const annee = relevesAImprimer(rel, 2026, 0).map((x) => x.id);
+  assert.deepEqual(annee, ['2025-12', '2026-01', '2026-02', '2026-03', '2026-04', '2026-12', '2027-01']);
+  // un relevé qui n'a que des cases cochées, sans fichier, n'est imprimé que s'il est réclamé par un voisin
+  assert.deepEqual(relevesAImprimer([r(2026, 5, { fileIds: [], surSuivant: true })], 2026, 5).map((x) => x.id), ['2026-06']);
+});
+
+test('caParClient : regroupe par client, trie, limite à 7 + « Autres », ignore les non encaissés', () => {
+  const fac = (n, ht, enc) => ({ numero: n, date: '2026-01-05', montantHT: ht, tvaTaux: 0, dateEncaissement: enc });
+  const missions = [
+    { id: 'a', client: 'Alpha', factures: [fac('F1', 1000, '2026-02-01')] },
+    { id: 'a2', client: 'alpha ', factures: [fac('F2', 500, '2026-03-01')] },
+    { id: 'b', client: 'Beta', factures: [fac('F3', 2000, '2026-04-01'), fac('F4', 999, '')] },
+    { id: 'c', client: 'Vieux', factures: [fac('F5', 700, '2025-12-31')] },
+  ];
+  for (let i = 0; i < 8; i++) missions.push({ id: 'x' + i, client: 'Petit' + i, factures: [fac('P' + i, 10 + i, '2026-05-01')] });
+  const l = caParClient({ missions, depenses: [], settings: defaultSettings(), tombstones: {} }, 2026);
+  assert.equal(l[0].client, 'Beta'); assert.equal(l[0].montant, 2000);
+  assert.equal(l[1].client, 'Alpha'); assert.equal(l[1].montant, 1500);
+  assert.equal(l.length, 8); assert.equal(l[7].client, 'Autres'); assert.equal(l[7].autres, 3);
+  assert(!l.some((x) => x.client === 'Vieux'));
+  assert(Math.abs(l.reduce((s, x) => s + x.part, 0) - 1) < 1e-9);
+});
+
+test('caCumule : cumul mensuel du CA encaissé', () => {
+  const d = { missions: [{ id: 'a', client: 'A', factures: [{ numero: 'F1', date: '2026-01-05', montantHT: 100, tvaTaux: 0, dateEncaissement: '2026-02-10' }, { numero: 'F2', date: '2026-01-05', montantHT: 50, tvaTaux: 0, dateEncaissement: '2026-04-10' }] }], depenses: [], settings: defaultSettings(), tombstones: {} };
+  const c = caCumule(d, 2026);
+  assert.deepEqual([c[0].cumul, c[1].cumul, c[2].cumul, c[3].cumul, c[11].cumul], [0, 100, 100, 150, 150]);
 });

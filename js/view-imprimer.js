@@ -1,10 +1,11 @@
 // Impression : récapitulatif, livres des recettes / dépenses et justificatifs, par mois ou par année.
 import { state } from './state.js';
-import { MOIS, CATEGORIES, HORS_DEPENSES, recettes, depenses, sumRecettes, summarize, summarizeYear, expenseAmounts, margeTva, rateFor, round2, suiviMois, isAssujetti } from './calc.js';
+import { MOIS, CATEGORIES, HORS_DEPENSES, recettes, depenses, sumRecettes, summarize, summarizeYear, expenseAmounts, margeTva, rateFor, round2, suiviMois, isAssujetti, relevesAImprimer } from './calc.js';
 import { esc, eur, fmtDate, today, pct } from './util.js';
 import { getFile, pdfToImages } from './files.js';
 import { toast } from './ui.js';
 import { tvaHtml } from './tva-view.js';
+import { chartsHtml } from './charts.js';
 
 const $ = (s) => document.querySelector(s);
 
@@ -29,7 +30,7 @@ export function render() {
         <label class="check"><input type="checkbox" name="jFac" checked> Factures encaissées sur la période</label>
         <label class="check"><input type="checkbox" name="jDevis"> Devis signés des missions concernées</label>
         <label class="check"><input type="checkbox" name="jDep" checked> Justificatifs des dépenses</label>
-        <label class="check"><input type="checkbox" name="jRel" checked> Relevés de banque</label>
+        <label class="check"><input type="checkbox" name="jRel" checked> Relevés de banque (celui du mois + le mois précédent / suivant s'ils sont cochés)</label>
       </fieldset>
       <div class="form-actions"><button class="btn primary">👁 Aperçu et impression</button></div>
     </form>`;
@@ -66,6 +67,7 @@ function recapSheet(year, month) {
     return { land: false, html: `${docHead('Récapitulatif annuel', year, 0)}
       <div class="table-wrap"><table><thead><tr><th>Mois</th><th>Recettes HT</th><th>Dépenses HT</th><th>URSSAF (${pct(x.rate)} %)</th><th>Trésorerie</th><th>Vir. perso</th></tr></thead>
       <tbody>${rows}</tbody><tfoot><tr><td>TOTAL</td><td class="num">${eur(x.recettesHT)}</td><td class="num">${eur(x.depensesHT)}</td><td class="num">${eur(x.urssafDu)}</td><td class="num">${eur(x.tresorerie)}</td><td class="num">${eur(x.perso)}</td></tr></tfoot></table></div>
+      ${chartsHtml(data, year)}
       <h2>Travail prévu et argent encaissé</h2>
       <div class="table-wrap"><table><thead><tr><th>Mois</th><th>Devis prévus HT</th><th>Facturé HT</th><th>Encaissé HT</th><th>Vir. perso</th><th>Écart cumulé</th></tr></thead><tbody>
       ${suiviMois(data, year).map((x) => `<tr><td>${MOIS[x.month - 1]}</td><td class="num">${eur(x.devisHT)}</td><td class="num">${eur(x.factureHT)}</td><td class="num">${eur(x.encaisseHT)}</td><td class="num">${eur(x.perso)}</td><td class="num">${eur(x.ecartCumule)}</td></tr>`).join('')}</tbody></table></div>
@@ -172,9 +174,10 @@ function collectPieces(year, month, opts) {
     }
   }
   if (opts.jRel) {
-    for (const r of data.releves || []) {
-      if (!(r.fileIds || []).length || Number(r.year) !== Number(year) || (month && Number(r.month) !== Number(month))) continue;
-      pieces.push({ date: `${r.year}-${String(r.month).padStart(2, '0')}-31`, kind: 'Relevé de banque', title: `${MOIS[r.month - 1]} ${r.year}`, meta: 'Relevé bancaire du mois', fileIds: r.fileIds });
+    for (const r of relevesAImprimer(data.releves || [], year, month)) {
+      const raisons = r.raisons.map((x) => `des encaissements de ${MOIS[x.mois - 1]} ${x.year} y figurent`);
+      pieces.push({ date: `${r.year}-${String(r.month).padStart(2, '0')}-31`, kind: 'Relevé de banque', title: `${MOIS[r.month - 1]} ${r.year}`,
+        meta: raisons.length ? `Joint car ${raisons.join(' ; ')}` : 'Relevé bancaire du mois', fileIds: r.fileIds });
     }
   }
   return pieces;

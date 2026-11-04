@@ -1,17 +1,21 @@
-import { state, hooks, releveOf, saveReleve, deleteReleve } from './state.js';
+import { state, hooks, releveOf, updateReleve } from './state.js';
 import { MOIS, summarizeYear, enAttente, margeTva, suiviMois, isAssujetti } from './calc.js';
 import { esc, eur, fmtDate, pct } from './util.js';
 import { openEncaisser } from './view-missions.js';
 import { openModal, toast, FilePicker } from './ui.js';
 import { tvaHtml } from './tva-view.js';
+import { chartsHtml } from './charts.js';
 
 /** Cellule « relevé de banque » d'un mois : nombre de fichiers joints, ou bouton d'ajout (avec alerte si le mois a de l'activité). */
 function releveCell(year, m) {
   const rel = releveOf(year, m.month);
   const n = rel ? (rel.fileIds || []).length : 0;
-  if (n) return `<button type="button" class="link" data-releve="${m.month}">📎 ${n} fichier${n > 1 ? 's' : ''}</button>`;
   const actif = m.recettesHT || m.depensesHT || m.perso || m.urssafPaye;
-  return `<button type="button" class="btn small" data-releve="${m.month}">＋ Ajouter</button>${actif ? ' <span class="badge warn">manquant</span>' : ''}`;
+  const main = n
+    ? `<button type="button" class="link" data-releve="${m.month}">📎 ${n} fichier${n > 1 ? 's' : ''}</button>`
+    : `<button type="button" class="btn small" data-releve="${m.month}">＋ Ajouter</button>${actif ? ' <span class="badge warn">manquant</span>' : ''}`;
+  const flag = (name, label, title) => `<label class="check flag" title="${title}"><input type="checkbox" data-flag="${name}" data-m="${m.month}"${rel && rel[name] ? ' checked' : ''}> ${label}</label>`;
+  return `${main}<div class="flags">${flag('surPrecedent', '◀ préc.', `Des encaissements de ${MOIS[m.month - 1]} figurent sur le relevé du mois précédent`)}${flag('surSuivant', 'suiv. ▶', `Des encaissements de ${MOIS[m.month - 1]} figurent sur le relevé du mois suivant`)}</div>`;
 }
 
 /** Fenêtre d'ajout / consultation du relevé de banque d'un mois (PDF ou photos, plusieurs fichiers possibles). */
@@ -28,7 +32,7 @@ export function openReleve(year, month) {
   modal.$('form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const ids = await fp.commit();
-    if (ids.length) await saveReleve(year, month, ids); else if (rel) await deleteReleve(year, month);
+    await updateReleve(year, month, { fileIds: ids });
     await fp.cleanup();
     modal.close(); toast('Relevé enregistré'); hooks.render();
   });
@@ -76,6 +80,8 @@ export function render() {
       <tbody>${rows}</tbody>
       <tfoot><tr><td>TOTAL</td><td class="num">${eur(t.recettesHT)}</td><td class="num">${eur(t.depensesHT)}</td><td class="num">${eur(t.urssafDu)}</td><td class="num">${eur(t.tresorerie)}</td><td class="num">${eur(t.perso)}</td><td></td></tr></tfoot>
     </table></div>
+    <p class="muted">Relevé de banque : cochez « ◀ préc. » ou « suiv. ▶ » quand des encaissements du mois figurent sur le relevé du mois d'avant ou d'après. À l'impression, ce relevé est joint avec celui du mois.</p>
+    ${chartsHtml(data, year)}
     <h2>Travail prévu (devis) et argent encaissé</h2>
     <p class="muted">Un devis compte dans le mois où le travail est prévu (ou signé) ; l'argent compte dans le mois où il est encaissé. L'écart cumulé est ce qui est travaillé mais pas encore en trésorerie.</p>
     <div class="table-wrap"><table>
@@ -93,6 +99,10 @@ export function render() {
   return {
     html,
     bind(root) {
+      root.querySelectorAll('[data-flag]').forEach((c) => c.addEventListener('change', async () => {
+        await updateReleve(year, Number(c.dataset.m), { [c.dataset.flag]: c.checked });
+        hooks.render();
+      }));
       root.querySelectorAll('[data-releve]').forEach((b) => b.addEventListener('click', () => openReleve(year, Number(b.dataset.releve))));
       root.querySelectorAll('[data-enc]').forEach((b) => b.addEventListener('click', () => {
         const a = att[Number(b.dataset.enc)];
