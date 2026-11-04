@@ -186,3 +186,17 @@ svg.chart .donut-v { fill: var(--ink); font-size: 15px; font-weight: 700; }
 .donut-legend .who { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .donut-legend .pc { width: 4.2rem; color: var(--muted); }
 @media print { .charts { grid-template-columns: 1fr; } .chart-card { box-shadow: none; } }
+/* Impression : les 3 graphiques tiennent sur une seule page, séparée des tableaux */
+@media print {
+  .charts-block { break-before: page; break-after: page; }
+  .charts-block h2 { margin: 0 0 3mm; }
+  .charts-block .charts { gap: 3mm; margin: 0; }
+  .charts-block .chart-card { padding: 2mm 3mm; break-inside: avoid; }
+  .charts-block .chart-card h3 { font-size: 10pt; margin: 0 0 1mm; }
+  .charts-block .legend { font-size: 8pt; margin-top: 1mm; }
+  .charts-block svg.chart { max-height: 62mm; margin: 0 auto; }
+  .charts-block .donut-wrap { flex-wrap: nowrap; gap: 6mm; }
+  .charts-block .donut-wrap svg.chart { width: 48mm; max-height: none; }
+  .charts-block .donut-legend { font-size: 9pt; }
+  .charts-block .donut-legend li { padding: 1mm 0; }
+}

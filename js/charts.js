@@ -88,10 +88,10 @@ export function camembertClients(data, year) {
 
 /** Bloc complet pour le Récap et l'impression annuelle. */
 export function chartsHtml(data, year) {
-  return `<h2>Graphiques ${year}</h2>
+  return `<div class="charts-block"><h2>Graphiques ${year}</h2>
     <div class="charts">
       <section class="chart-card"><h3>Évolution mensuelle : CA, dépenses, URSSAF</h3>${barsMensuel(data, year)}</section>
       <section class="chart-card"><h3>CA encaissé cumulé</h3>${courbeCumul(data, year)}</section>
       <section class="chart-card"><h3>Répartition du CA par client</h3>${camembertClients(data, year)}</section>
-    </div>`;
+    </div></div>`;
 }
