@@ -22,6 +22,7 @@ export const pad2 = (n) => String(n).padStart(2, '0');
 export function defaultSettings() {
   return {
     nom: '', siret: '', adresse: '', activite: '',
+    beneficiairePerso: '',   // bénéficiaire pré-rempli pour les virements personnels
     defaultRate: 21.3,       // taux de cotisations URSSAF (%), repris du fichier Excel
     rates: {},               // taux par année : { "2026": 21.3 }
     periodicite: 'mensuelle', // ou 'trimestrielle'

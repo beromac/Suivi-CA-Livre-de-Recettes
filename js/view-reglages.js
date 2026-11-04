@@ -29,6 +29,7 @@ export function render() {
       ${field('SIRET', `<input name="siret" inputmode="numeric" value="${esc(s.siret)}">`)}
       ${field('Adresse', `<input name="adresse" value="${esc(s.adresse)}">`)}
       ${field('Activité', `<input name="activite" value="${esc(s.activite)}">`)}
+      ${field('Bénéficiaire des virements personnels', `<input name="beneficiairePerso" value="${esc(s.beneficiairePerso || '')}" autocomplete="off">`, 'Nom pré-rempli dans le champ « bénéficiaire » quand vous saisissez une dépense de catégorie « virement personnel ».')}
       <div class="form-actions"><button class="btn primary">Enregistrer</button></div>
     </form>
 

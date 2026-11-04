@@ -157,6 +157,16 @@ export function openDepenseForm(d = null, month = 0) {
   modal.$('[name=km]').addEventListener('input', () => { if (cb && cb.checked) calcKm(); });
   modal.$('[name=date]').addEventListener('change', () => { if (cb && cb.checked) calcKm(); });
   sel.addEventListener('change', syncKm); syncKm();
+  // Virement personnel : pré-remplit le bénéficiaire (réglage), sans écraser une saisie ou une dépense existante.
+  const benef = data.settings.beneficiairePerso || '';
+  const fourn = modal.$('[name=fournisseur]');
+  let auto = !d && cur.categorie === 'perso' && !fourn.value && benef ? (fourn.value = benef, true) : false;
+  fourn.addEventListener('input', () => { auto = false; });
+  sel.addEventListener('change', () => {
+    if (!benef || d) return;
+    if (sel.value === 'perso' && !fourn.value) { fourn.value = benef; auto = true; }
+    else if (sel.value !== 'perso' && auto && fourn.value === benef) { fourn.value = ''; auto = false; }
+  });
   modal.$('[data-close2]').addEventListener('click', () => modal.close());
   const del = modal.$('[data-del]');
   if (del) del.addEventListener('click', async () => {
