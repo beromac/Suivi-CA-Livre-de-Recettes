@@ -1,8 +1,38 @@
-import { state } from './state.js';
+import { state, hooks, releveOf, saveReleve, deleteReleve } from './state.js';
 import { MOIS, summarizeYear, enAttente, margeTva, suiviMois, isAssujetti } from './calc.js';
 import { esc, eur, fmtDate, pct } from './util.js';
 import { openEncaisser } from './view-missions.js';
+import { openModal, toast, FilePicker } from './ui.js';
 import { tvaHtml } from './tva-view.js';
+
+/** Cellule « relevé de banque » d'un mois : nombre de fichiers joints, ou bouton d'ajout (avec alerte si le mois a de l'activité). */
+function releveCell(year, m) {
+  const rel = releveOf(year, m.month);
+  const n = rel ? (rel.fileIds || []).length : 0;
+  if (n) return `<button type="button" class="link" data-releve="${m.month}">📎 ${n} fichier${n > 1 ? 's' : ''}</button>`;
+  const actif = m.recettesHT || m.depensesHT || m.perso || m.urssafPaye;
+  return `<button type="button" class="btn small" data-releve="${m.month}">＋ Ajouter</button>${actif ? ' <span class="badge warn">manquant</span>' : ''}`;
+}
+
+/** Fenêtre d'ajout / consultation du relevé de banque d'un mois (PDF ou photos, plusieurs fichiers possibles). */
+export function openReleve(year, month) {
+  const rel = releveOf(year, month);
+  const modal = openModal({
+    title: `Relevé de banque — ${MOIS[month - 1]} ${year}`,
+    body: `<form class="form">
+      <div class="field"><span>Relevé(s) bancaire(s) du mois (PDF ou photos)</span><div id="fp"></div></div>
+      <div class="form-actions"><span class="spacer"></span><button type="button" class="btn" data-close2>Annuler</button><button class="btn primary">Enregistrer</button></div></form>`,
+  });
+  const fp = new FilePicker(modal.$('#fp'), { ids: rel ? rel.fileIds : [], multiple: true });
+  modal.$('[data-close2]').addEventListener('click', () => modal.close());
+  modal.$('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const ids = await fp.commit();
+    if (ids.length) await saveReleve(year, month, ids); else if (rel) await deleteReleve(year, month);
+    await fp.cleanup();
+    modal.close(); toast('Relevé enregistré'); hooks.render();
+  });
+}
 
 export function render() {
   const { year, data } = state;
@@ -22,7 +52,8 @@ export function render() {
   const rows = ys.months.map((m) => `<tr>
       <td><a href="#/recettes/${m.month}">${MOIS[m.month - 1]}</a></td>
       <td class="num">${eur(m.recettesHT)}</td><td class="num">${eur(m.depensesHT)}</td>
-      <td class="num">${eur(m.urssafDu)}</td><td class="num strong">${eur(m.tresorerie)}</td><td class="num">${eur(m.perso)}</td></tr>`).join('');
+      <td class="num">${eur(m.urssafDu)}</td><td class="num strong">${eur(m.tresorerie)}</td><td class="num">${eur(m.perso)}</td>
+      <td>${releveCell(year, m)}</td></tr>`).join('');
 
   const attRows = att.map((a, i) => `<tr>
       <td>${esc(a.facture.numero)}</td><td><a href="#/mission/${a.mission.id}">${esc(a.mission.client)}</a></td>
@@ -41,9 +72,9 @@ export function render() {
     </div>
     <p class="muted">Le chiffre d'affaires est compté dans le mois de la <strong>date d'encaissement</strong> de chaque facture.</p>
     <div class="table-wrap"><table>
-      <thead><tr><th>Mois</th><th class="num">Recettes HT</th><th class="num">Dépenses HT</th><th class="num">URSSAF dû</th><th class="num">Trésorerie</th><th class="num">Vir. perso</th></tr></thead>
+      <thead><tr><th>Mois</th><th class="num">Recettes HT</th><th class="num">Dépenses HT</th><th class="num">URSSAF dû</th><th class="num">Trésorerie</th><th class="num">Vir. perso</th><th>Relevé de banque</th></tr></thead>
       <tbody>${rows}</tbody>
-      <tfoot><tr><td>TOTAL</td><td class="num">${eur(t.recettesHT)}</td><td class="num">${eur(t.depensesHT)}</td><td class="num">${eur(t.urssafDu)}</td><td class="num">${eur(t.tresorerie)}</td><td class="num">${eur(t.perso)}</td></tr></tfoot>
+      <tfoot><tr><td>TOTAL</td><td class="num">${eur(t.recettesHT)}</td><td class="num">${eur(t.depensesHT)}</td><td class="num">${eur(t.urssafDu)}</td><td class="num">${eur(t.tresorerie)}</td><td class="num">${eur(t.perso)}</td><td></td></tr></tfoot>
     </table></div>
     <h2>Travail prévu (devis) et argent encaissé</h2>
     <p class="muted">Un devis compte dans le mois où le travail est prévu (ou signé) ; l'argent compte dans le mois où il est encaissé. L'écart cumulé est ce qui est travaillé mais pas encore en trésorerie.</p>
@@ -62,6 +93,7 @@ export function render() {
   return {
     html,
     bind(root) {
+      root.querySelectorAll('[data-releve]').forEach((b) => b.addEventListener('click', () => openReleve(year, Number(b.dataset.releve))));
       root.querySelectorAll('[data-enc]').forEach((b) => b.addEventListener('click', () => {
         const a = att[Number(b.dataset.enc)];
         openEncaisser(a.mission.id, a.facture.id);

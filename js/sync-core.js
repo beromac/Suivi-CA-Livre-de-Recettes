@@ -18,13 +18,14 @@ export function canonical(v) {
   return JSON.stringify(v);
 }
 
-export const referencedFileIds = (missions, depenses) => {
+export const referencedFileIds = (missions, depenses, releves = []) => {
   const ids = new Set();
   for (const m of missions) {
     (m.devis || []).forEach((d) => d.fileId && ids.add(d.fileId));
     (m.factures || []).forEach((f) => f.fileId && ids.add(f.fileId));
   }
   for (const d of depenses) (d.fileIds || []).forEach((id) => id && ids.add(id));
+  for (const r of releves) (r.fileIds || []).forEach((id) => id && ids.add(id));
   return ids;
 };
 
@@ -43,15 +44,16 @@ function mergeCollection(a, b, tombstones) {
 
 /** Fusionne deux jeux de données {missions, depenses, settings, tombstones, files}. `remote` peut être null. */
 export function mergeData(local, remote) {
-  const r = remote || { missions: [], depenses: [], settings: null, tombstones: {}, files: {} };
+  const r = remote || { missions: [], depenses: [], releves: [], settings: null, tombstones: {}, files: {} };
   const tombstones = { ...(r.tombstones || {}) };
   for (const [id, t] of Object.entries(local.tombstones || {})) if (!tombstones[id] || t > tombstones[id]) tombstones[id] = t;
 
   const missions = mergeCollection(local.missions, r.missions, tombstones);
   const depenses = mergeCollection(local.depenses, r.depenses, tombstones);
+  const releves = mergeCollection(local.releves, r.releves, tombstones);
 
   // Une pierre tombale devenue inutile (enregistrement modifié depuis) est retirée.
-  const alive = new Set([...missions, ...depenses].map((x) => x.id));
+  const alive = new Set([...missions, ...depenses, ...releves].map((x) => x.id));
   for (const id of Object.keys(tombstones)) if (alive.has(id)) delete tombstones[id];
 
   const ls = local.settings || null;
@@ -60,9 +62,9 @@ export function mergeData(local, remote) {
 
   const allFiles = { ...(r.files || {}), ...(local.files || {}) };
   const files = {};
-  for (const id of referencedFileIds(missions, depenses)) if (allFiles[id]) files[id] = allFiles[id];
+  for (const id of referencedFileIds(missions, depenses, releves)) if (allFiles[id]) files[id] = allFiles[id];
 
-  return { format: FORMAT, missions, depenses, settings, tombstones, files };
+  return { format: FORMAT, missions, depenses, releves, settings, tombstones, files };
 }
 
 /** Décide quoi écrire / supprimer en local après fusion, sans écraser ce qui a été modifié pendant la synchro. */
@@ -135,7 +137,7 @@ export async function syncCore({ gh, local, onProgress = () => {}, maxAttempts =
       }
     }
     await local.apply(merged);
-    return { pushed: changed, uploaded: up, downloaded: down, missions: merged.missions.length, depenses: merged.depenses.length };
+    return { pushed: changed, uploaded: up, downloaded: down, missions: merged.missions.length, depenses: merged.depenses.length, releves: merged.releves.length };
   }
   throw new Error(`Synchronisation interrompue : le dépôt est modifié en continu (${lastErr ? lastErr.message : 'conflit'}). Réessayez.`);
 }

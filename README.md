@@ -6,6 +6,7 @@ Application web (PC et Android) qui reprend la structure de votre fichier Excel 
 - **Encaissement** : vous notez la **date d'encaissement** de chaque facture. Le chiffre d'affaires est compté **dans le mois de cette date**, pas dans celui de la facture.
 - **Livre chronologique des recettes** et **des dépenses**, mois par mois, comme dans l'Excel (dépenses avec justificatif, frais kilométriques, virements perso, paiements URSSAF).
 - **URSSAF** : pour chaque mois (ou trimestre), le chiffre d'affaires à déclarer et les cotisations estimées, avec l'échéance habituelle.
+- **Relevés de banque** : dans le tableau mensuel du Récapitulatif, une colonne permet de joindre le relevé du mois (PDF ou photos). Une alerte « manquant » signale les mois avec activité sans relevé. Ils sont sauvegardés, synchronisés et imprimables avec les justificatifs.
 - **Récapitulatif annuel** (recettes, dépenses, URSSAF, trésorerie, marge avant le seuil de TVA).
 - **Travail prévu et argent encaissé** : un tableau par mois compare les devis prévus, le facturé et l'encaissé, avec l'écart cumulé (travaillé mais pas encore en trésorerie). Un devis compte dans son mois de réalisation prévu (champ facultatif du devis) ou, à défaut, dans son mois de signature.
 - **Case « Je suis soumis à la TVA »** (Réglages) : décochée (franchise en base, par défaut), aucune TVA n'apparaît nulle part (factures, livres, récapitulatifs, impressions) et le TTC égale le HT ; cochée, la TVA des factures et des dépenses s'affiche partout et le tableau « TVA à déclarer » remplace la simulation.

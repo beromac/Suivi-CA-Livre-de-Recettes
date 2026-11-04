@@ -29,6 +29,7 @@ export function render() {
         <label class="check"><input type="checkbox" name="jFac" checked> Factures encaissées sur la période</label>
         <label class="check"><input type="checkbox" name="jDevis"> Devis signés des missions concernées</label>
         <label class="check"><input type="checkbox" name="jDep" checked> Justificatifs des dépenses</label>
+        <label class="check"><input type="checkbox" name="jRel" checked> Relevés de banque</label>
       </fieldset>
       <div class="form-actions"><button class="btn primary">👁 Aperçu et impression</button></div>
     </form>`;
@@ -38,7 +39,7 @@ export function render() {
       root.querySelector('#pf').addEventListener('submit', (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
-        const opts = Object.fromEntries(['recap', 'livreRec', 'livreDep', 'jFac', 'jDevis', 'jDep'].map((k) => [k, fd.has(k)]));
+        const opts = Object.fromEntries(['recap', 'livreRec', 'livreDep', 'jFac', 'jDevis', 'jDep', 'jRel'].map((k) => [k, fd.has(k)]));
         if (!Object.values(opts).some(Boolean)) { toast('Cochez au moins un document', 'err'); return; }
         openPrint({ year, month: Number(fd.get('month')), opts });
       });
@@ -168,6 +169,12 @@ function collectPieces(year, month, opts) {
       if (HORS_DEPENSES.includes(d.categorie) && !(d.fileIds || []).length) continue;
       const a = expenseAmounts(d, tvaOn);
       pieces.push({ date: d.date, kind: 'Dépense', title: `${d.fournisseur}${d.designation ? ' — ' + d.designation : ''}`, meta: `${fmtDate(d.date)} · ${eur(a.ttc)}${tvaOn ? ' TTC' : ''} · ${CATEGORIES[d.categorie] || d.categorie}${d.mode ? ' · ' + d.mode : ''}`, fileIds: d.fileIds || [] });
+    }
+  }
+  if (opts.jRel) {
+    for (const r of data.releves || []) {
+      if (!(r.fileIds || []).length || Number(r.year) !== Number(year) || (month && Number(r.month) !== Number(month))) continue;
+      pieces.push({ date: `${r.year}-${String(r.month).padStart(2, '0')}-31`, kind: 'Relevé de banque', title: `${MOIS[r.month - 1]} ${r.year}`, meta: 'Relevé bancaire du mois', fileIds: r.fileIds });
     }
   }
   return pieces;

@@ -7,7 +7,7 @@ try { savedYear = Number(localStorage.getItem('lr_year')); } catch { /* stockage
 
 export const state = {
   year: savedYear || new Date().getFullYear(),
-  data: { missions: [], depenses: [], settings: defaultSettings(), tombstones: {} },
+  data: { missions: [], depenses: [], releves: [], settings: defaultSettings(), tombstones: {} },
 };
 
 export const hooks = { render: () => {}, onChange: () => {} };
@@ -21,6 +21,7 @@ export function setYear(y) {
 export async function load() {
   state.data.missions = await db.getAll('missions');
   state.data.depenses = await db.getAll('depenses');
+  state.data.releves = await db.getAll('releves');
   state.data.settings = { ...defaultSettings(), ...((await db.get('meta', 'settings')) || {}) };
   state.data.tombstones = (await db.get('meta', 'tombstones')) || {};
 }
@@ -70,4 +71,22 @@ export async function saveSettings(patch) {
   await db.put('meta', s, 'settings');
   state.data.settings = s;
   if (shared) hooks.onChange();
+}
+
+/* ---------- Relevés de banque (un enregistrement par mois : « AAAA-MM ») ---------- */
+export const releveId = (year, month) => `${year}-${String(month).padStart(2, '0')}`;
+export const releveOf = (year, month) => state.data.releves.find((r) => r.id === releveId(year, month));
+
+export async function saveReleve(year, month, fileIds) {
+  await db.put('releves', { id: releveId(year, month), year: Number(year), month: Number(month), fileIds, updated: now() });
+  await load();
+  hooks.onChange();
+}
+
+export async function deleteReleve(year, month) {
+  const id = releveId(year, month);
+  await db.del('releves', id);
+  await addTombstone(id);
+  await load();
+  hooks.onChange();
 }

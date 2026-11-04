@@ -6,14 +6,14 @@ import { syncCore, mergeData, planApply, canonical } from '../js/sync-core.js';
 
 /** Appareil factice : mêmes méthodes que l'adaptateur IndexedDB, en mémoire. */
 function device() {
-  const d = { missions: new Map(), depenses: new Map(), settings: null, tombstones: {}, blobs: new Map(), files: {} };
+  const d = { missions: new Map(), depenses: new Map(), releves: new Map(), settings: null, tombstones: {}, blobs: new Map(), files: {} };
   const local = {
-    snapshot: async () => ({ missions: [...d.missions.values()], depenses: [...d.depenses.values()], settings: d.settings, tombstones: d.tombstones, files: d.files }),
+    snapshot: async () => ({ missions: [...d.missions.values()], depenses: [...d.depenses.values()], releves: [...d.releves.values()], settings: d.settings, tombstones: d.tombstones, files: d.files }),
     hasBlob: async (id) => d.blobs.has(id),
     getBlob: async (id) => d.blobs.get(id),
     putBlob: async (meta, bytes) => { d.blobs.set(meta.id, bytes); d.files[meta.id] = meta; },
     apply: async (merged) => {
-      for (const [k, list] of [['missions', merged.missions], ['depenses', merged.depenses]]) {
+      for (const [k, list] of [['missions', merged.missions], ['depenses', merged.depenses], ['releves', merged.releves]]) {
         const plan = planApply([...d[k].values()], list, merged.tombstones);
         plan.put.forEach((r) => d[k].set(r.id, r)); plan.del.forEach((id) => d[k].delete(id));
       }
@@ -108,4 +108,22 @@ test('planApply ne touche pas à ce qui a été modifié pendant la synchro', ()
   const current = [{ id: 'm', updated: '2026-06-01' }, { id: 'n', updated: '2026-06-01' }];
   const plan = planApply(current, [{ id: 'm', updated: '2026-01-01' }], { n: '2026-02-01' });
   assert.deepEqual(plan, { put: [], del: [] });
+});
+
+test('relevés de banque : synchronisés avec leurs fichiers, suppression propagée', async () => {
+  const mock = await startMock();
+  const gh = ghFor(mock.url);
+  const pc = device(), tel = device();
+  pc.d.releves.set('2026-03', { id: '2026-03', year: 2026, month: 3, fileIds: ['r1'], updated: '2026-04-01T08:00:00Z' });
+  pc.addFile('r1', 'releve-mars');
+  await syncCore({ gh, local: pc.local });
+  assert.ok(mock.state.files.has('files/r1'));
+  await syncCore({ gh, local: tel.local });
+  assert.equal(tel.d.releves.get('2026-03').fileIds[0], 'r1');
+  assert.equal(new TextDecoder().decode(tel.d.blobs.get('r1')), 'releve-mars');
+  pc.d.releves.delete('2026-03'); pc.d.tombstones = { '2026-03': '2026-05-01T00:00:00Z' };
+  await syncCore({ gh, local: pc.local });
+  await syncCore({ gh, local: tel.local });
+  assert.equal(tel.d.releves.has('2026-03'), false);
+  await mock.close();
 });
