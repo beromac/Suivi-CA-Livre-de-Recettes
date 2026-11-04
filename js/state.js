@@ -1,6 +1,7 @@
 import * as db from './db.js';
 import { defaultSettings } from './calc.js';
 import { deleteFiles } from './files.js';
+import { planKm } from './bareme.js';
 
 let savedYear = null;
 try { savedYear = Number(localStorage.getItem('lr_year')); } catch { /* stockage indisponible */ }
@@ -52,13 +53,35 @@ export async function deleteMission(id) {
   hooks.onChange();
 }
 
-export async function saveDepense(d) { d.updated = now(); await db.put('depenses', d); await load(); hooks.onChange(); }
+const yearOfDate = (d) => Number(String((d && d.date) || '').slice(0, 4));
+
+/** Recalcule les indemnités kilométriques en calcul automatique d'une année (le barème est cumulatif sur l'année). Retourne le nombre de lignes modifiées. */
+export async function recalcKm(year) {
+  const plan = planKm(await db.getAll('depenses'), year);
+  let n = 0;
+  for (const d of await db.getAll('depenses')) {
+    const p = plan.get(d.id);
+    if (p && (d.montantTTC !== p.montant || d.tauxKm !== p.taux)) { await db.put('depenses', { ...d, montantTTC: p.montant, tauxKm: p.taux, updated: now() }); n++; }
+  }
+  return n;
+}
+
+export async function saveDepense(d) {
+  const before = state.data.depenses.find((x) => x.id === d.id);
+  d.updated = now();
+  await db.put('depenses', d);
+  if (d.categorie === 'km' || (before && before.categorie === 'km')) {
+    for (const y of new Set([yearOfDate(d), yearOfDate(before)].filter(Boolean))) await recalcKm(y);
+  }
+  await load(); hooks.onChange();
+}
 
 export async function deleteDepense(id) {
   const d = state.data.depenses.find((x) => x.id === id);
   await db.del('depenses', id);
   await addTombstone(id);
   if (d) await deleteFiles(d.fileIds);
+  if (d && d.categorie === 'km' && yearOfDate(d)) await recalcKm(yearOfDate(d));
   await load();
   hooks.onChange();
 }

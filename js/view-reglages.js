@@ -1,5 +1,6 @@
-import { state, hooks, saveSettings, load } from './state.js';
+import { state, hooks, saveSettings, load, recalcKm } from './state.js';
 import { rateFor } from './calc.js';
+import { baremeFor, CV_LABELS } from './bareme.js';
 import * as db from './db.js';
 import { esc, fmtDate } from './util.js';
 import { toast, confirmBox, field } from './ui.js';
@@ -13,6 +14,9 @@ export function render() {
   const s = data.settings;
   const cfg = getConfig() || { owner: '', repo: '', branch: 'main', token: '', auto: true };
   const st = getStatus();
+  const bar = baremeFor(year);
+  const kmInfo = `<p class="muted" style="margin:-.4rem 0 0">Barème appliqué aux dépenses de ${year} : <strong>barème ${bar.year}</strong>${bar.exact ? '' : ` — ⚠ le barème ${year} n'est pas encore dans l'application (le dernier connu est utilisé) ; il sera pris en compte à la prochaine mise à jour, puis cliquez sur « Recalculer »`}.
+    Le barème est cumulatif sur l'année : le taux baisse après 5 000 km puis 20 000 km. <button type="button" class="btn small" id="b-km">Recalculer les indemnités ${year}</button></p>`;
   const lb = s.lastBackup ? fmtDate(s.lastBackup.slice(0, 10)) : 'jamais';
 
   const html = `
@@ -37,7 +41,10 @@ export function render() {
       <p class="muted" style="margin:-.4rem 0 0">Décoché (franchise en base, auto-entrepreneur) : aucune TVA n'apparaît dans les factures, les livres ni les récapitulatifs. Coché : la TVA des factures et des dépenses s'affiche partout, et le tableau « TVA à déclarer » remplace la simulation.</p>
       <label class="check"><input type="checkbox" name="tvaSimAffiche" ${s.tvaSimAffiche !== false ? 'checked' : ''}> Afficher la simulation de TVA tant que je suis en franchise (prévision en cas de sortie)</label>
       ${field('Taux de TVA proposé sur les nouvelles factures (%)', `<input name="tvaTaux" inputmode="decimal" value="${esc(s.tvaTaux)}">`, '0 = franchise en base de TVA (aucune TVA facturée).')}
-      ${field('Indemnité kilométrique proposée (€/km)', `<input name="kmRate" inputmode="decimal" value="${esc(s.kmRate)}">`)}
+      ${field('Véhicule : puissance fiscale (barème kilométrique)', `<select name="kmCv"><option value="0"${!s.kmCv ? ' selected' : ''}>Non renseignée : indemnité saisie à la main</option>${Object.entries(CV_LABELS).map(([k, v]) => `<option value="${k}"${Number(s.kmCv) === Number(k) ? ' selected' : ''}>${v}</option>`).join('')}</select>`, 'Si renseignée, l\'indemnité des frais kilométriques est calculée automatiquement d\'après le barème de l\'année de la dépense.')}
+      <label class="check"><input type="checkbox" name="kmElec" ${s.kmElec ? 'checked' : ''}> Véhicule électrique (barème majoré de 20 %)</label>
+      ${kmInfo}
+      ${field('Indemnité kilométrique manuelle proposée (€/km)', `<input name="kmRate" inputmode="decimal" value="${esc(s.kmRate)}">`, 'Utilisée seulement quand le calcul automatique est désactivé sur une dépense.')}
       ${field('Seuil de franchise de TVA (€)', `<input name="seuilTva" inputmode="decimal" value="${esc(s.seuilTva)}">`, 'Repris de votre Excel (124 jours × 300 € = 37 200 €). Mettez 0 pour masquer l\'indicateur.')}
       ${field('Simulation de TVA : taux (%)', `<input name="tvaSimTaux" inputmode="decimal" value="${esc(s.tvaSimTaux)}">`, 'Taux utilisé pour estimer la TVA si vous sortiez de la franchise (20 % en général).')}
       ${field('Simulation de TVA : vos prix actuels…', `<select name="tvaSimMode"><option value="ajoutee"${s.tvaSimMode !== 'incluse' ? ' selected' : ''}>sont HT : la TVA s\'ajoute (le client paie plus)</option><option value="incluse"${s.tvaSimMode === 'incluse' ? ' selected' : ''}>seraient TTC : la TVA est comprise (vous gardez moins)</option></select>`)}
@@ -91,9 +98,11 @@ export function render() {
         const f = fdOf(e);
         const rates = { ...(s.rates || {}) };
         if (f.rateYear === '') delete rates[year]; else rates[year] = num(f.rateYear);
-        await saveSettings({ defaultRate: num(f.defaultRate), rates, periodicite: f.periodicite, tvaAssujetti: 'tvaAssujetti' in f, tvaSimAffiche: 'tvaSimAffiche' in f, tvaTaux: ('tvaAssujetti' in f && !num(f.tvaTaux)) ? 20 : num(f.tvaTaux), kmRate: num(f.kmRate), seuilTva: num(f.seuilTva), tjm: num(f.tjm), tvaSimTaux: f.tvaSimTaux === '' ? 20 : num(f.tvaSimTaux), tvaSimMode: f.tvaSimMode });
+        await saveSettings({ defaultRate: num(f.defaultRate), rates, periodicite: f.periodicite, tvaAssujetti: 'tvaAssujetti' in f, tvaSimAffiche: 'tvaSimAffiche' in f, tvaTaux: ('tvaAssujetti' in f && !num(f.tvaTaux)) ? 20 : num(f.tvaTaux), kmRate: num(f.kmRate), kmCv: num(f.kmCv), kmElec: 'kmElec' in f, seuilTva: num(f.seuilTva), tjm: num(f.tjm), tvaSimTaux: f.tvaSimTaux === '' ? 20 : num(f.tvaSimTaux), tvaSimMode: f.tvaSimMode });
         toast('Paramètres enregistrés');
       });
+
+      $('#b-km').addEventListener('click', async () => { const n = await recalcKm(year); await load(); toast(n ? `${n} indemnité(s) recalculée(s)` : 'Rien à recalculer'); hooks.render(); });
 
       $('#b-export').addEventListener('click', async (e) => {
         e.target.disabled = true;

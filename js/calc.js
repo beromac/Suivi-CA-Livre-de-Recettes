@@ -28,7 +28,9 @@ export function defaultSettings() {
     tvaAssujetti: false,     // false = franchise en base de TVA : la TVA n'apparaît nulle part
     tvaSimAffiche: true,     // en franchise : afficher (ou non) la simulation de TVA
     tvaTaux: 0,              // taux de TVA proposé par défaut sur les factures (0 = sans TVA)
-    kmRate: 0,               // €/km proposé par défaut
+    kmRate: 0,               // €/km proposé par défaut (saisie manuelle)
+    kmCv: 0,                 // puissance fiscale du véhicule (3 à 7) : 0 = calcul manuel ; sinon barème kilométrique automatique
+    kmElec: false,           // véhicule électrique (barème majoré de 20 %)
     tjm: 300,                // taux journalier moyen (€), repris du fichier Excel (CA ÷ 300)
     tvaSimTaux: 20,          // simulation de TVA (sortie de la franchise) : taux appliqué
     tvaSimMode: 'ajoutee',   // 'ajoutee' : la TVA s'ajoute aux prix actuels ; 'incluse' : elle est déjà comprise dans les prix

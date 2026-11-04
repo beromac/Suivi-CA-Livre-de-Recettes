@@ -1,6 +1,7 @@
 import { state, hooks, saveDepense, deleteDepense } from './state.js';
 import { MOIS, CATEGORIES, MODES, recettes, depenses, sumRecettes, summarize, expenseAmounts, rateFor, round2, HORS_DEPENSES, isAssujetti } from './calc.js';
 import { esc, eur, fmtDate, today, uid, pct } from './util.js';
+import { planKm, baremeFor, CV_LABELS, clampCv } from './bareme.js';
 import { openModal, confirmBox, toast, field, options, FilePicker, viewFile } from './ui.js';
 
 const num = (v) => (v === '' || v == null ? 0 : Number(String(v).replace(',', '.')));
@@ -101,7 +102,7 @@ export function openDepenseForm(d = null, month = 0) {
     if (month) return `${year}-${String(month).padStart(2, '0')}-01`;
     return Number(t.slice(0, 4)) === year ? t : `${year}-01-01`;
   })();
-  const cur = d || { date: defDate, fournisseur: '', designation: '', categorie: 'autre', montantTTC: '', montantTVA: '', mode: 'Carte bancaire', km: '', tauxKm: data.settings.kmRate || '', fileIds: [], reference: '' };
+  const cur = d || { date: defDate, fournisseur: '', designation: '', categorie: 'autre', montantTTC: '', montantTVA: '', mode: 'Carte bancaire', km: '', tauxKm: data.settings.kmRate || '', bareme: !!data.settings.kmCv, cv: data.settings.kmCv || 0, elec: !!data.settings.kmElec, fileIds: [], reference: '' };
   const modal = openModal({
     title: d ? 'Modifier la dépense' : 'Nouvelle dépense',
     body: `<form class="form">
@@ -112,7 +113,9 @@ export function openDepenseForm(d = null, month = 0) {
       ${field('N° de pièce', `<input name="reference" value="${esc(cur.reference || '')}">`)}
       <div id="kmBox" hidden>
         ${field('Kilomètres', `<input name="km" inputmode="decimal" value="${esc(cur.km)}">`)}
-        ${field('Indemnité (€ / km)', `<input name="tauxKm" inputmode="decimal" value="${esc(cur.tauxKm)}">`)}
+        ${data.settings.kmCv || cur.bareme ? `<label class="check"><input type="checkbox" name="bareme" ${cur.bareme ? 'checked' : ''}> Calcul automatique selon le barème kilométrique (${esc(CV_LABELS[clampCv(cur.cv || data.settings.kmCv)])}${(d ? cur.elec : data.settings.kmElec) ? ', électrique' : ''})</label>` : '<p class="muted">Astuce : renseignez la puissance de votre véhicule dans les Réglages pour calculer l\'indemnité automatiquement.</p>'}
+        <div id="kmAuto" hidden><p class="notice" id="kmCalc" style="margin:0"></p></div>
+        <div id="kmManuel">${field('Indemnité (€ / km)', `<input name="tauxKm" inputmode="decimal" value="${esc(cur.tauxKm)}">`)}</div>
       </div>
       <div id="amtBox">
         ${field('Montant TTC (€) *', `<input name="montantTTC" inputmode="decimal" value="${esc(cur.montantTTC)}">`)}
@@ -131,8 +134,28 @@ export function openDepenseForm(d = null, month = 0) {
     modal.$('#amtBox').hidden = km;
     modal.$('[name=montantTTC]').required = !km;
     modal.$('[name=km]').required = km;
-    modal.$('[name=tauxKm]').required = km;
+    const auto = km && !!(modal.$('[name=bareme]') && modal.$('[name=bareme]').checked);
+    modal.$('#kmAuto').hidden = !auto;
+    modal.$('#kmManuel').hidden = auto;
+    modal.$('[name=tauxKm]').required = km && !auto;
+    if (auto) calcKm();
   };
+  // Aperçu du calcul : on simule la dépense avec les autres trajets de l'année (le barème est cumulatif).
+  const kmVehicule = () => ({ cv: d && cur.bareme ? cur.cv : data.settings.kmCv, elec: d && cur.bareme ? !!cur.elec : !!data.settings.kmElec });
+  const calcKm = () => {
+    const date = modal.$('[name=date]').value || cur.date, km = num(modal.$('[name=km]').value), y = Number(String(date).slice(0, 4));
+    const v = kmVehicule();
+    const cand = { id: d ? d.id : '__new__', date, categorie: 'km', km, bareme: true, cv: v.cv, elec: v.elec };
+    const plan = planKm([...data.depenses.filter((x) => !d || x.id !== d.id), cand], y);
+    const r = plan.get(cand.id), b = baremeFor(y);
+    modal.$('#kmCalc').innerHTML = km > 0 && r
+      ? `Indemnité : <strong>${eur(r.montant)}</strong> (${String(r.taux).replace('.', ',')} €/km en moyenne) — barème ${b.year}${b.exact ? '' : ` ⚠ (barème ${y} non encore disponible)`}, cumulé sur l'année.`
+      : 'Saisissez les kilomètres : l\'indemnité sera calculée selon le barème.';
+  };
+  const cb = modal.$('[name=bareme]');
+  if (cb) cb.addEventListener('change', syncKm);
+  modal.$('[name=km]').addEventListener('input', () => { if (cb && cb.checked) calcKm(); });
+  modal.$('[name=date]').addEventListener('change', () => { if (cb && cb.checked) calcKm(); });
   sel.addEventListener('change', syncKm); syncKm();
   modal.$('[data-close2]').addEventListener('click', () => modal.close());
   const del = modal.$('[data-del]');
@@ -145,13 +168,14 @@ export function openDepenseForm(d = null, month = 0) {
     e.preventDefault();
     const fd = Object.fromEntries(new FormData(e.target));
     const isKm = fd.categorie === 'km';
-    const ttc = isKm ? round2(num(fd.km) * num(fd.tauxKm)) : num(fd.montantTTC);
+    const auto = isKm && fd.bareme === 'on';
+    const ttc = isKm ? (auto ? 0 : round2(num(fd.km) * num(fd.tauxKm))) : num(fd.montantTTC); // en automatique, le montant est calculé à l'enregistrement
     const fileIds = await fp.commit();
     const rec = {
       id: d ? d.id : uid(), date: fd.date, categorie: fd.categorie, fournisseur: fd.fournisseur, designation: fd.designation,
       reference: fd.reference, mode: fd.mode, fileIds,
       montantTTC: ttc, montantTVA: isKm ? 0 : (fd.montantTVA !== undefined ? num(fd.montantTVA) : num(d && d.montantTVA)),
-      ...(isKm ? { km: num(fd.km), tauxKm: num(fd.tauxKm) } : {}),
+      ...(isKm ? { km: num(fd.km), tauxKm: auto ? 0 : num(fd.tauxKm), bareme: auto, ...(auto ? kmVehicule() : {}) } : {}),
     };
     await saveDepense(rec); await fp.cleanup(); modal.close(); toast('Dépense enregistrée'); hooks.render();
   });
