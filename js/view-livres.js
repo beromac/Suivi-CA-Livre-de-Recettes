@@ -1,5 +1,5 @@
 import { state, hooks, saveDepense, deleteDepense } from './state.js';
-import { MOIS, CATEGORIES, MODES, recettes, depenses, sumRecettes, summarize, expenseAmounts, rateFor, round2, HORS_DEPENSES } from './calc.js';
+import { MOIS, CATEGORIES, MODES, recettes, depenses, sumRecettes, summarize, expenseAmounts, rateFor, round2, HORS_DEPENSES, isAssujetti } from './calc.js';
 import { esc, eur, fmtDate, today, uid, pct } from './util.js';
 import { openModal, confirmBox, toast, field, options, FilePicker, viewFile } from './ui.js';
 
@@ -21,20 +21,21 @@ export function renderRecettes(params) {
   const list = recettes(data, year, month || null);
   const tot = sumRecettes(list);
   const rate = rateFor(data.settings, year);
+  const tvaOn = isAssujetti(data.settings);
   const rows = list.map((r) => `<tr>
     <td>${fmtDate(r.date)}</td><td>${esc(r.facture.numero)}</td>
     <td><a href="#/mission/${r.mission.id}">${esc(r.mission.client)}</a></td>
     <td>${esc(r.mission.adresse || '')}</td><td>${esc(r.mission.siret || '')}</td><td>${esc(r.mission.nature || r.mission.ref || '')}</td>
-    <td class="num">${eur(r.ht)}</td><td class="num">${eur(r.ttc)}</td><td class="num">${eur(r.tva)}</td><td>${esc(r.facture.mode || '')}</td></tr>`).join('');
+    <td class="num">${eur(r.ht)}</td>${tvaOn ? `<td class="num">${eur(r.ttc)}</td><td class="num">${eur(r.tva)}</td>` : ''}<td>${esc(r.facture.mode || '')}</td></tr>`).join('');
   const title = month ? `${MOIS[month - 1]} ${year}` : `Année ${year}`;
   const html = `
     <h1>Livre chronologique des recettes</h1>
     ${monthTabs('recettes', month)}
     <h2>${title}</h2>
     ${list.length ? `<div class="table-wrap"><table>
-      <thead><tr><th>Encaissé le</th><th>N° pièce</th><th>Client</th><th>Adresse</th><th>SIRET</th><th>Nature</th><th class="num">HT</th><th class="num">TTC</th><th class="num">TVA</th><th>Mode</th></tr></thead>
+      <thead><tr><th>Encaissé le</th><th>N° pièce</th><th>Client</th><th>Adresse</th><th>SIRET</th><th>Nature</th><th class="num">${tvaOn ? 'HT' : 'Montant'}</th>${tvaOn ? '<th class="num">TTC</th><th class="num">TVA</th>' : ''}<th>Mode</th></tr></thead>
       <tbody>${rows}</tbody>
-      <tfoot><tr><td colspan="6">TOTAL RECETTES ENCAISSÉES</td><td class="num">${eur(tot.ht)}</td><td class="num">${eur(tot.ttc)}</td><td class="num">${eur(tot.tva)}</td><td></td></tr></tfoot>
+      <tfoot><tr><td colspan="6">TOTAL RECETTES ENCAISSÉES</td><td class="num">${eur(tot.ht)}</td>${tvaOn ? `<td class="num">${eur(tot.ttc)}</td><td class="num">${eur(tot.tva)}</td>` : ''}<td></td></tr></tfoot>
     </table></div>
     <p class="notice">À déclarer à l'URSSAF pour cette période : <strong>${eur(tot.ht)}</strong> de chiffre d'affaires · cotisations estimées à ${pct(rate)} % : <strong>${eur(round2(tot.ht * rate / 100))}</strong></p>`
       : '<p class="empty">Aucune recette encaissée sur cette période.<br><span class="muted">Une facture apparaît ici dès que sa date d\'encaissement est renseignée (fiche mission → Encaisser).</span></p>'}`;
@@ -46,16 +47,17 @@ export function renderDepenses(params) {
   const { year, data } = state;
   const month = params[0] === undefined ? defaultMonth(year) : Number(params[0]);
   const list = depenses(data, year, month || null);
+  const tvaOn = isAssujetti(data.settings);
   const sansJust = list.filter((d) => !(d.fileIds || []).length && !HORS_DEPENSES.includes(d.categorie)).length;
   const rows = list.map((d) => {
-    const a = expenseAmounts(d);
+    const a = expenseAmounts(d, tvaOn);
     const j = (d.fileIds || []).length
       ? `<button class="link" data-view="${d.fileIds[0]}">📎 ${d.fileIds.length}</button>`
       : (HORS_DEPENSES.includes(d.categorie) ? '<span class="muted">—</span>' : '<span class="badge warn">manquant</span>');
     return `<tr class="click" data-edit="${d.id}">
       <td>${fmtDate(d.date)}</td><td>${esc(d.fournisseur)}<div class="muted">${esc(d.designation || '')}</div></td>
       <td>${esc(CATEGORIES[d.categorie] || d.categorie)}</td>
-      <td class="num">${eur(a.ht)}</td><td class="num">${eur(a.ttc)}</td><td class="num">${eur(a.tva)}</td><td>${esc(d.mode || '')}</td><td>${j}</td></tr>`;
+      ${tvaOn ? `<td class="num">${eur(a.ht)}</td><td class="num">${eur(a.ttc)}</td><td class="num">${eur(a.tva)}</td>` : `<td class="num">${eur(a.ttc)}</td>`}<td>${esc(d.mode || '')}</td><td>${j}</td></tr>`;
   }).join('');
 
   const s = month ? summarize(data, year, month) : null;
@@ -71,9 +73,9 @@ export function renderDepenses(params) {
     <h2>${title}</h2>
     ${sansJust ? `<div class="notice warn">⚠ ${sansJust} dépense(s) sans justificatif sur cette période. Ouvrez-la pour ajouter une photo ou un PDF.</div>` : ''}
     ${list.length ? `<div class="table-wrap"><table>
-      <thead><tr><th>Date</th><th>Fournisseur / désignation</th><th>Catégorie</th><th class="num">HT</th><th class="num">TTC</th><th class="num">TVA</th><th>Paiement</th><th>Justif.</th></tr></thead>
+      <thead><tr><th>Date</th><th>Fournisseur / désignation</th><th>Catégorie</th>${tvaOn ? '<th class="num">HT</th><th class="num">TTC</th><th class="num">TVA</th>' : '<th class="num">Montant</th>'}<th>Paiement</th><th>Justif.</th></tr></thead>
       <tbody>${rows}</tbody>
-      <tfoot><tr><td colspan="4">TOTAL DÉPENSES PROFESSIONNELLES (TTC, hors URSSAF et virements perso)</td><td class="num">${eur(totPro)}</td><td colspan="3"></td></tr></tfoot>
+      <tfoot><tr><td colspan="${tvaOn ? 4 : 3}">TOTAL DÉPENSES PROFESSIONNELLES (TTC, hors URSSAF et virements perso)</td><td class="num">${eur(totPro)}</td><td colspan="${tvaOn ? 3 : 2}"></td></tr></tfoot>
     </table></div>
     <p>${catLine}</p>
     ${s ? `<p class="notice">Solde du mois : recettes HT ${eur(s.recettesHT)} − dépenses HT ${eur(s.depensesHT)} − URSSAF dû ${eur(s.urssafDu)} = <strong>${eur(s.tresorerie)}</strong></p>` : ''}`
@@ -114,7 +116,7 @@ export function openDepenseForm(d = null, month = 0) {
       </div>
       <div id="amtBox">
         ${field('Montant TTC (€) *', `<input name="montantTTC" inputmode="decimal" value="${esc(cur.montantTTC)}">`)}
-        ${field('dont TVA (€)', `<input name="montantTVA" inputmode="decimal" value="${esc(cur.montantTVA)}">`)}
+        ${(isAssujetti(data.settings) || data.settings.tvaSimAffiche !== false) ? field('dont TVA (€)', `<input name="montantTVA" inputmode="decimal" value="${esc(cur.montantTVA)}">`, isAssujetti(data.settings) ? 'TVA récupérable indiquée sur le justificatif.' : 'Facultatif : sert uniquement à la simulation de TVA.') : ''}
       </div>
       ${field('Mode de paiement', `<select name="mode"><option value=""></option>${options(MODES.map((x) => [x, x]), cur.mode)}</select>`)}
       <div class="field"><span>Justificatif(s) : ticket, facture, relevé… (PDF ou photo)</span><div id="fp"></div></div>
@@ -148,7 +150,7 @@ export function openDepenseForm(d = null, month = 0) {
     const rec = {
       id: d ? d.id : uid(), date: fd.date, categorie: fd.categorie, fournisseur: fd.fournisseur, designation: fd.designation,
       reference: fd.reference, mode: fd.mode, fileIds,
-      montantTTC: ttc, montantTVA: isKm ? 0 : num(fd.montantTVA),
+      montantTTC: ttc, montantTVA: isKm ? 0 : (fd.montantTVA !== undefined ? num(fd.montantTVA) : num(d && d.montantTVA)),
       ...(isKm ? { km: num(fd.km), tauxKm: num(fd.tauxKm) } : {}),
     };
     await saveDepense(rec); await fp.cleanup(); modal.close(); toast('Dépense enregistrée'); hooks.render();

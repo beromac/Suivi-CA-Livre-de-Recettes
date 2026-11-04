@@ -33,6 +33,9 @@ export function render() {
       ${field('Taux de cotisations URSSAF par défaut (%)', `<input name="defaultRate" inputmode="decimal" value="${esc(s.defaultRate)}">`, 'Repris de votre fichier Excel : 21,3 %. Vérifiez le taux de votre activité sur autoentrepreneur.urssaf.fr.')}
       ${field(`Taux spécifique pour ${year} (%)`, `<input name="rateYear" inputmode="decimal" placeholder="${esc(rateFor(s, year))}" value="${esc((s.rates || {})[year] ?? '')}">`, 'Laissez vide pour utiliser le taux par défaut. Utile si le taux change d\'une année à l\'autre.')}
       ${field('Périodicité de déclaration', `<select name="periodicite"><option value="mensuelle"${s.periodicite === 'mensuelle' ? ' selected' : ''}>Mensuelle</option><option value="trimestrielle"${s.periodicite === 'trimestrielle' ? ' selected' : ''}>Trimestrielle</option></select>`)}
+      <label class="check"><input type="checkbox" name="tvaAssujetti" ${s.tvaAssujetti ? 'checked' : ''}> <strong>Je suis soumis à la TVA</strong> (hors franchise en base)</label>
+      <p class="muted" style="margin:-.4rem 0 0">Décoché (franchise en base, auto-entrepreneur) : aucune TVA n'apparaît dans les factures, les livres ni les récapitulatifs. Coché : la TVA des factures et des dépenses s'affiche partout, et le tableau « TVA à déclarer » remplace la simulation.</p>
+      <label class="check"><input type="checkbox" name="tvaSimAffiche" ${s.tvaSimAffiche !== false ? 'checked' : ''}> Afficher la simulation de TVA tant que je suis en franchise (prévision en cas de sortie)</label>
       ${field('Taux de TVA proposé sur les nouvelles factures (%)', `<input name="tvaTaux" inputmode="decimal" value="${esc(s.tvaTaux)}">`, '0 = franchise en base de TVA (aucune TVA facturée).')}
       ${field('Indemnité kilométrique proposée (€/km)', `<input name="kmRate" inputmode="decimal" value="${esc(s.kmRate)}">`)}
       ${field('Seuil de franchise de TVA (€)', `<input name="seuilTva" inputmode="decimal" value="${esc(s.seuilTva)}">`, 'Repris de votre Excel (124 jours × 300 € = 37 200 €). Mettez 0 pour masquer l\'indicateur.')}
@@ -88,7 +91,7 @@ export function render() {
         const f = fdOf(e);
         const rates = { ...(s.rates || {}) };
         if (f.rateYear === '') delete rates[year]; else rates[year] = num(f.rateYear);
-        await saveSettings({ defaultRate: num(f.defaultRate), rates, periodicite: f.periodicite, tvaTaux: num(f.tvaTaux), kmRate: num(f.kmRate), seuilTva: num(f.seuilTva), tjm: num(f.tjm), tvaSimTaux: f.tvaSimTaux === '' ? 20 : num(f.tvaSimTaux), tvaSimMode: f.tvaSimMode });
+        await saveSettings({ defaultRate: num(f.defaultRate), rates, periodicite: f.periodicite, tvaAssujetti: 'tvaAssujetti' in f, tvaSimAffiche: 'tvaSimAffiche' in f, tvaTaux: ('tvaAssujetti' in f && !num(f.tvaTaux)) ? 20 : num(f.tvaTaux), kmRate: num(f.kmRate), seuilTva: num(f.seuilTva), tjm: num(f.tjm), tvaSimTaux: f.tvaSimTaux === '' ? 20 : num(f.tvaSimTaux), tvaSimMode: f.tvaSimMode });
         toast('Paramètres enregistrés');
       });
 

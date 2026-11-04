@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { recettes, summarize, summarizeYear, periodes, enAttente, nextFactureNumber, factureAmounts, defaultSettings, margeTva, rateFor, suiviMois, simulationTva } from '../js/calc.js';
+import { recettes, summarize, summarizeYear, periodes, enAttente, nextFactureNumber, factureAmounts, defaultSettings, margeTva, rateFor, suiviMois, simulationTva, isAssujetti, expenseAmounts } from '../js/calc.js';
 
 const fac = (id, ht, enc, extra = {}) => ({ id, numero: id, date: '2026-01-05', montantHT: ht, tvaTaux: 0, dateEncaissement: enc, ...extra });
 const mk = (factures, depenses = [], settings = {}) => ({
@@ -40,7 +40,7 @@ test('URSSAF = CA encaissé HT × taux (21,3 % par défaut, comme le fichier Exc
 });
 
 test('avec TVA : le CA à déclarer est HT, la TVA est séparée', () => {
-  const d = mk([fac('a', 1000, '2026-05-10', { tvaTaux: 20 })]);
+  const d = mk([fac('a', 1000, '2026-05-10', { tvaTaux: 20 })], [], { tvaAssujetti: true });
   const s = summarize(d, 2026, 5);
   assert.equal(s.recettesHT, 1000); assert.equal(s.recettesTVA, 200); assert.equal(s.recettesTTC, 1200);
   assert.deepEqual(factureAmounts(d.missions[0].factures[0]), { ht: 1000, tva: 200, ttc: 1200 });
@@ -51,7 +51,7 @@ test('dépenses : URSSAF et virements perso exclus des dépenses pro (comme l\'E
     { id: 'x1', date: '2026-04-03', categorie: 'repas', montantTTC: 20, montantTVA: 2 },
     { id: 'x2', date: '2026-04-04', categorie: 'urssaf', montantTTC: 400, montantTVA: 0 },
     { id: 'x3', date: '2026-04-05', categorie: 'perso', montantTTC: 900, montantTVA: 0 },
-  ]);
+  ], { tvaAssujetti: true });
   const s = summarize(d, 2026, 4);
   assert.equal(s.depensesHT, 18); assert.equal(s.urssafPaye, 400); assert.equal(s.perso, 900);
   assert.equal(s.tresorerie, 2000 - 18 - 426);
@@ -111,7 +111,22 @@ test('simulation TVA : collectée sur encaissements − déductible sur dépense
   assert.equal(s3.months[3].aReverser, -10); assert.equal(s3.total.aReverser, -10); // crédit de TVA
 });
 
-test('simulation TVA : une facture avec une vraie TVA garde sa TVA', () => {
-  const d = mk([fac('a', 1000, '2026-05-10', { tvaTaux: 10 })]);
-  assert.equal(simulationTva(d, 2026).months[4].collectee, 100);
+test('assujetti : la TVA est réelle (taux des factures), plus de simulation', () => {
+  const d = mk([fac('a', 1000, '2026-05-10', { tvaTaux: 10 })], [], { tvaAssujetti: true });
+  const s = simulationTva(d, 2026);
+  assert.equal(s.reel, true); assert.equal(s.months[4].collectee, 100);
+});
+
+test('franchise en base (case décochée) : aucune TVA, TTC = HT, coût des dépenses = TTC', () => {
+  // la facture porte un taux de TVA, mais il est ignoré tant que la case « soumis à la TVA » n'est pas cochée
+  const d = mk([fac('a', 1000, '2026-05-10', { tvaTaux: 20 })], [{ id: 'e', date: '2026-05-02', categorie: 'fournitures', montantTTC: 120, montantTVA: 20 }]);
+  assert.equal(isAssujetti(d.settings), false);
+  const s = summarize(d, 2026, 5);
+  assert.equal(s.recettesHT, 1000); assert.equal(s.recettesTVA, 0); assert.equal(s.recettesTTC, 1000);
+  assert.equal(s.depensesHT, 120); // TVA non récupérable : le coût réel est le TTC
+  assert.equal(recettes(d, 2026, 5)[0].tva, 0);
+  assert.deepEqual(expenseAmounts(d.depenses[0], false), { ttc: 120, tva: 0, ht: 120 });
+  // la simulation, elle, continue d'utiliser le « dont TVA » saisi
+  assert.equal(simulationTva(d, 2026).months[4].deductible, 20);
+  assert.equal(simulationTva(d, 2026).reel, false);
 });

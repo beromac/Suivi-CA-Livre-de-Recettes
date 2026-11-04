@@ -1,5 +1,5 @@
 import { state, hooks, missionById, saveMission, deleteMission, missionFileIds } from './state.js';
-import { MODES, missionStats, factureAmounts, nextFactureNumber } from './calc.js';
+import { MODES, missionStats, factureAmounts, nextFactureNumber, isAssujetti } from './calc.js';
 import { esc, eur, fmtDate, today, uid } from './util.js';
 import { openModal, confirmBox, toast, field, options, FilePicker, viewFile } from './ui.js';
 import { deleteFiles } from './files.js';
@@ -66,6 +66,7 @@ export function renderDetail(params) {
   const m = missionById(params[0]);
   if (!m) return { html: '<p class="empty">Mission introuvable. <a href="#/missions">Retour aux missions</a></p>', bind() {} };
   const s = missionStats(m);
+  const tvaOn = isAssujetti(state.data.settings);
 
   const devisRows = (m.devis || []).map((d) => `<tr>
       <td>${esc(d.numero || '—')}</td><td>${fmtDate(d.dateSignature)}</td><td class="num">${eur(d.montantHT)}</td>
@@ -73,12 +74,12 @@ export function renderDetail(params) {
       <td class="right"><button class="btn small" data-edit-devis="${d.id}">Modifier</button></td></tr>`).join('');
 
   const facRows = (m.factures || []).map((f) => {
-    const a = factureAmounts(f);
+    const a = factureAmounts(f, tvaOn);
     const etat = f.dateEncaissement
       ? `<span class="badge ok">Encaissée le ${fmtDate(f.dateEncaissement)}</span>${f.mode ? `<div class="muted">${esc(f.mode)}</div>` : ''}`
       : `<span class="badge warn">En attente</span> <button class="btn small primary" data-enc="${f.id}">Encaisser</button>`;
     return `<tr>
-      <td>${esc(f.numero)}</td><td>${fmtDate(f.date)}</td><td class="num">${eur(a.ht)}</td><td class="num">${eur(a.ttc)}</td>
+      <td>${esc(f.numero)}</td><td>${fmtDate(f.date)}</td><td class="num">${eur(a.ht)}</td>${tvaOn ? `<td class="num">${eur(a.ttc)}</td>` : ''}
       <td>${etat}</td>
       <td>${f.fileId ? `<button class="link" data-view="${f.fileId}">📄 Voir</button>` : '<span class="badge warn">Pas de fichier</span>'}</td>
       <td class="right"><button class="btn small" data-edit-fac="${f.id}">Modifier</button></td></tr>`;
@@ -97,7 +98,7 @@ export function renderDetail(params) {
     <div class="page-head"><h2>Devis signés</h2><button class="btn" data-add-devis>＋ Ajouter un devis</button></div>
     ${(m.devis || []).length ? `<div class="table-wrap"><table><thead><tr><th>N°</th><th>Signé le</th><th class="num">HT</th><th>Fichier</th><th></th></tr></thead><tbody>${devisRows}</tbody></table></div>` : '<p class="empty">Aucun devis enregistré.</p>'}
     <div class="page-head"><h2>Factures</h2><button class="btn" data-add-fac>＋ Ajouter une facture</button></div>
-    ${(m.factures || []).length ? `<div class="table-wrap"><table><thead><tr><th>N°</th><th>Date</th><th class="num">HT</th><th class="num">TTC</th><th>Encaissement</th><th>Fichier</th><th></th></tr></thead><tbody>${facRows}</tbody></table></div>` : '<p class="empty">Aucune facture enregistrée.</p>'}
+    ${(m.factures || []).length ? `<div class="table-wrap"><table><thead><tr><th>N°</th><th>Date</th><th class="num">HT</th>${tvaOn ? '<th class="num">TTC</th>' : ''}<th>Encaissement</th><th>Fichier</th><th></th></tr></thead><tbody>${facRows}</tbody></table></div>` : '<p class="empty">Aucune facture enregistrée.</p>'}
     <p class="muted">Le CA d'une facture est compté dans le mois de sa <strong>date d'encaissement</strong>.</p>`;
 
   return {
@@ -181,7 +182,7 @@ function openFactureForm(m, f = null) {
   const s = missionStats(m);
   const cur = f || {
     numero: nextFactureNumber(state.data, state.year), date: today(),
-    montantHT: s.resteAFacturer > 0 ? s.resteAFacturer : '', tvaTaux: state.data.settings.tvaTaux || 0,
+    montantHT: s.resteAFacturer > 0 ? s.resteAFacturer : '', tvaTaux: isAssujetti(state.data.settings) ? (state.data.settings.tvaTaux || 20) : 0,
     dateEncaissement: '', mode: '', fileId: null,
   };
   const modal = openModal({
@@ -190,7 +191,7 @@ function openFactureForm(m, f = null) {
       ${field('Numéro de facture *', `<input name="numero" required value="${esc(cur.numero)}">`)}
       ${field('Date de la facture', `<input name="date" type="date" required value="${esc(cur.date)}">`)}
       ${field('Montant HT (€) *', `<input name="montantHT" inputmode="decimal" required value="${esc(cur.montantHT)}">`)}
-      ${field('Taux de TVA (%)', `<input name="tvaTaux" inputmode="decimal" value="${esc(cur.tvaTaux)}">`, '0 si vous êtes en franchise de TVA')}
+      ${isAssujetti(state.data.settings) ? field('Taux de TVA (%)', `<input name="tvaTaux" inputmode="decimal" value="${esc(cur.tvaTaux)}">`, 'TVA ajoutée au montant HT (20 %, 10 %, 5,5 %…).') : ''}
       <fieldset><legend>Encaissement</legend>
         ${field('Date d\'encaissement', `<input name="dateEncaissement" type="date" value="${esc(cur.dateEncaissement)}">`, 'Laissez vide tant que le paiement n\'est pas reçu : le CA n\'est compté qu\'à cette date.')}
         ${field('Mode d\'encaissement', `<select name="mode"><option value=""></option>${options(MODES.map((x) => [x, x]), cur.mode)}</select>`)}
@@ -212,7 +213,7 @@ function openFactureForm(m, f = null) {
     const fd = Object.fromEntries(new FormData(e.target));
     const ids = await fp.commit();
     const rec = {
-      id: f ? f.id : uid(), numero: fd.numero, date: fd.date, montantHT: num(fd.montantHT), tvaTaux: num(fd.tvaTaux),
+      id: f ? f.id : uid(), numero: fd.numero, date: fd.date, montantHT: num(fd.montantHT), tvaTaux: isAssujetti(state.data.settings) ? num(fd.tvaTaux) : 0,
       dateEncaissement: fd.dateEncaissement || '', mode: fd.mode, fileId: ids[0] || null,
     };
     m.factures = f ? m.factures.map((x) => (x.id === f.id ? rec : x)) : [...(m.factures || []), rec];
@@ -224,11 +225,12 @@ function openFactureForm(m, f = null) {
 export function openEncaisser(missionId, factureId) {
   const m = missionById(missionId);
   const f = (m.factures || []).find((x) => x.id === factureId);
-  const a = factureAmounts(f);
+  const tvaOn = isAssujetti(state.data.settings);
+  const a = factureAmounts(f, tvaOn);
   const modal = openModal({
     title: `Encaisser la facture ${f.numero}`,
     body: `<form class="form">
-      <p>${esc(m.client)} — <strong>${eur(a.ttc)}</strong> TTC</p>
+      <p>${esc(m.client)} — <strong>${eur(tvaOn ? a.ttc : a.ht)}</strong>${tvaOn ? ' TTC' : ''}</p>
       ${field('Date d\'encaissement', `<input name="dateEncaissement" type="date" required value="${today()}">`, 'C\'est la date à laquelle l\'argent est arrivé (relevé bancaire, remise de chèque…).')}
       ${field('Mode d\'encaissement', `<select name="mode">${options(MODES.map((x) => [x, x]), f.mode || 'Virement')}</select>`)}
       <div class="form-actions"><button type="button" class="btn" data-close2>Annuler</button><button class="btn primary">Enregistrer</button></div></form>`,

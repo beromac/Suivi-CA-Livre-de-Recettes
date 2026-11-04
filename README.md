@@ -8,7 +8,8 @@ Application web (PC et Android) qui reprend la structure de votre fichier Excel 
 - **URSSAF** : pour chaque mois (ou trimestre), le chiffre d'affaires à déclarer et les cotisations estimées, avec l'échéance habituelle.
 - **Récapitulatif annuel** (recettes, dépenses, URSSAF, trésorerie, marge avant le seuil de TVA).
 - **Travail prévu et argent encaissé** : un tableau par mois compare les devis prévus, le facturé et l'encaissé, avec l'écart cumulé (travaillé mais pas encore en trésorerie). Un devis compte dans son mois de réalisation prévu (champ facultatif du devis) ou, à défaut, dans son mois de signature.
-- **Simulation de TVA** : si vous sortiez de la franchise, la TVA à reverser (collectée sur les encaissements − déductible sur les dépenses) mois par mois, avec le crédit de TVA à récupérer le cas échéant.
+- **Case « Je suis soumis à la TVA »** (Réglages) : décochée (franchise en base, par défaut), aucune TVA n'apparaît nulle part (factures, livres, récapitulatifs, impressions) et le TTC égale le HT ; cochée, la TVA des factures et des dépenses s'affiche partout et le tableau « TVA à déclarer » remplace la simulation.
+- **Simulation de TVA** (en franchise, désactivable) : si vous sortiez de la franchise, la TVA à reverser (collectée sur les encaissements − déductible sur les dépenses) mois par mois, avec le crédit de TVA à récupérer le cas échéant.
 - **Impression / PDF** du récapitulatif, des livres et de tous les justificatifs, par mois ou par année.
 - **Années** : changez d'année avec les flèches en haut ; chaque année a ses propres totaux.
 - Fonctionne **hors-ligne** une fois ouverte, s'installe comme une application sur Android et sur PC.

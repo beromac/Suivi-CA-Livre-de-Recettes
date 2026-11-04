@@ -2,7 +2,7 @@
 import * as db from './db.js';
 import { state, load, saveSettings } from './state.js';
 import { downloadBlob, safeName, today, fmtDate } from './util.js';
-import { recettes, depenses, expenseAmounts, CATEGORIES } from './calc.js';
+import { recettes, depenses, expenseAmounts, CATEGORIES, isAssujetti } from './calc.js';
 
 const FORMAT = 'livre-recettes-backup-v1';
 
@@ -55,18 +55,22 @@ const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
 
 /** Export CSV (ouvrable dans Excel) du livre des recettes et des dépenses d'une année. */
 export function exportCSV(year) {
-  const rows = [['LIVRE DES RECETTES ' + year], ['Date d\'encaissement', 'N° facture', 'Client', 'Adresse', 'SIRET', 'Nature', 'Montant HT', 'TVA', 'Montant TTC', 'Mode d\'encaissement', 'Date facture']];
+  const tvaOn = isAssujetti(state.data.settings);
+  const n = (v) => Number(v).toFixed(2).replace('.', ',');
+  const rows = [['LIVRE DES RECETTES ' + year],
+    ['Date d\'encaissement', 'N° facture', 'Client', 'Adresse', 'SIRET', 'Nature', ...(tvaOn ? ['Montant HT', 'TVA', 'Montant TTC'] : ['Montant']), 'Mode d\'encaissement', 'Date facture']];
   for (const r of recettes(state.data, year)) {
     rows.push([fmtDate(r.date), r.facture.numero, r.mission.client, r.mission.adresse, r.mission.siret, r.mission.nature || r.mission.ref,
-      r.ht.toFixed(2).replace('.', ','), r.tva.toFixed(2).replace('.', ','), r.ttc.toFixed(2).replace('.', ','), r.facture.mode, fmtDate(r.facture.date)]);
+      ...(tvaOn ? [n(r.ht), n(r.tva), n(r.ttc)] : [n(r.ht)]), r.facture.mode, fmtDate(r.facture.date)]);
   }
-  rows.push([], ['LIVRE DES DÉPENSES ' + year], ['Date', 'Référence', 'Fournisseur', 'Désignation', 'Catégorie', 'Montant HT', 'TVA', 'Montant TTC', 'Mode de paiement', 'Justificatif']);
+  rows.push([], ['LIVRE DES DÉPENSES ' + year],
+    ['Date', 'Référence', 'Fournisseur', 'Désignation', 'Catégorie', ...(tvaOn ? ['Montant HT', 'TVA', 'Montant TTC'] : ['Montant']), 'Mode de paiement', 'Justificatif']);
   for (const d of depenses(state.data, year)) {
-    const a = expenseAmounts(d);
+    const a = expenseAmounts(d, tvaOn);
     rows.push([fmtDate(d.date), d.reference, d.fournisseur, d.designation, CATEGORIES[d.categorie] || d.categorie,
-      a.ht.toFixed(2).replace('.', ','), a.tva.toFixed(2).replace('.', ','), a.ttc.toFixed(2).replace('.', ','), d.mode, (d.fileIds || []).length ? 'oui' : 'non']);
+      ...(tvaOn ? [n(a.ht), n(a.tva), n(a.ttc)] : [n(a.ttc)]), d.mode, (d.fileIds || []).length ? 'oui' : 'non']);
   }
-  const csv = '﻿' + rows.map((r) => r.map(csvCell).join(';')).join('\r\n');
+  const csv = '\ufeff' + rows.map((r) => r.map(csvCell).join(';')).join('\r\n');
   downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `livres-${year}.csv`);
 }
 

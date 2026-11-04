@@ -1,9 +1,10 @@
 // Impression : récapitulatif, livres des recettes / dépenses et justificatifs, par mois ou par année.
 import { state } from './state.js';
-import { MOIS, CATEGORIES, HORS_DEPENSES, recettes, depenses, sumRecettes, summarize, summarizeYear, expenseAmounts, margeTva, rateFor, round2, suiviMois, simulationTva } from './calc.js';
+import { MOIS, CATEGORIES, HORS_DEPENSES, recettes, depenses, sumRecettes, summarize, summarizeYear, expenseAmounts, margeTva, rateFor, round2, suiviMois, isAssujetti } from './calc.js';
 import { esc, eur, fmtDate, today, pct } from './util.js';
 import { getFile, pdfToImages } from './files.js';
 import { toast } from './ui.js';
+import { tvaHtml } from './tva-view.js';
 
 const $ = (s) => document.querySelector(s);
 
@@ -59,7 +60,6 @@ function recapSheet(year, month) {
   const t = margeTva(data, year);
   if (!month) {
     const ys = summarizeYear(data, year);
-    const sim = simulationTva(data, year);
     const rows = ys.months.map((m) => `<tr><td>${MOIS[m.month - 1]}</td><td class="num">${eur(m.recettesHT)}</td><td class="num">${eur(m.depensesHT)}</td><td class="num">${eur(m.urssafDu)}</td><td class="num">${eur(m.tresorerie)}</td><td class="num">${eur(m.perso)}</td></tr>`).join('');
     const x = ys.total;
     return { land: false, html: `${docHead('Récapitulatif annuel', year, 0)}
@@ -68,24 +68,18 @@ function recapSheet(year, month) {
       <h2>Travail prévu et argent encaissé</h2>
       <div class="table-wrap"><table><thead><tr><th>Mois</th><th>Devis prévus HT</th><th>Facturé HT</th><th>Encaissé HT</th><th>Vir. perso</th><th>Écart cumulé</th></tr></thead><tbody>
       ${suiviMois(data, year).map((x) => `<tr><td>${MOIS[x.month - 1]}</td><td class="num">${eur(x.devisHT)}</td><td class="num">${eur(x.factureHT)}</td><td class="num">${eur(x.encaisseHT)}</td><td class="num">${eur(x.perso)}</td><td class="num">${eur(x.ecartCumule)}</td></tr>`).join('')}</tbody></table></div>
-      <h2>Simulation de TVA (hors franchise)</h2>
-      <div class="table-wrap"><table>
-      <thead><tr><th>Mois</th><th class="num">TVA collectée</th><th class="num">TVA déductible</th><th class="num">TVA à reverser</th><th class="num">Cumul</th></tr></thead>
-      <tbody>${sim.months.map((x) => `<tr><td>${MOIS[x.month - 1]}</td><td class="num">${eur(x.collectee)}</td><td class="num">${eur(x.deductible)}</td><td class="num strong">${x.aReverser < 0 ? eur(-x.aReverser) + ' à récupérer' : eur(x.aReverser)}</td><td class="num">${eur(x.cumul)}</td></tr>`).join('')}</tbody>
-      <tfoot><tr><td>TOTAL</td><td class="num">${eur(sim.total.collectee)}</td><td class="num">${eur(sim.total.deductible)}</td><td class="num">${sim.total.aReverser < 0 ? eur(-sim.total.aReverser) + ' à récupérer' : eur(sim.total.aReverser)}</td><td class="num">${eur(sim.total.aReverser)}</td></tr></tfoot>
-    </table></div>
-      <p class="muted">Simulation indicative au taux de ${pct(sim.taux)} %, ${sim.incluse ? 'TVA considérée comme déjà incluse dans vos prix actuels' : 'TVA ajoutée à vos prix actuels'} (réglable dans Réglages). TVA collectée = sur les encaissements du mois ; TVA déductible = « dont TVA » saisie sur vos dépenses professionnelles, justificatifs à l'appui.</p>
+      ${tvaHtml(data, year)}
       <p class="muted">Recettes = factures encaissées dans le mois (date d'encaissement), hors TVA. Dépenses hors paiements URSSAF et virements personnels. Trésorerie = recettes − dépenses − cotisations URSSAF dues.</p>
       <p>Cotisations URSSAF payées sur l'année : <strong>${eur(x.urssafPaye)}</strong> · reste estimé : <strong>${eur(round2(x.urssafDu - x.urssafPaye))}</strong>
-      ${t.seuil ? `<br>Marge avant le seuil de franchise de TVA (${eur(t.seuil)}) : <strong>${t.reste >= 0 ? eur(t.reste) : 'seuil dépassé de ' + eur(-t.reste)}</strong>${t.reste >= 0 && t.jours != null ? ` (≈ ${String(t.jours).replace('.', ',')} jours à ${eur(t.tjm)})` : ''}` : ''}</p>` };
+      ${!isAssujetti(data.settings) && t.seuil ? `<br>Marge avant le seuil de franchise de TVA (${eur(t.seuil)}) : <strong>${t.reste >= 0 ? eur(t.reste) : 'seuil dépassé de ' + eur(-t.reste)}</strong>${t.reste >= 0 && t.jours != null ? ` (≈ ${String(t.jours).replace('.', ',')} jours à ${eur(t.tjm)})` : ''}` : ''}</p>` };
   }
   const s = summarize(data, year, month);
+  const tvaOn = isAssujetti(data.settings);
   const line = (l, v, strong) => `<tr><td${strong ? ' class="strong"' : ''}>${l}</td><td class="num${strong ? ' strong' : ''}">${v}</td></tr>`;
   return { land: false, html: `${docHead('Récapitulatif mensuel', year, month)}
     <div class="table-wrap"><table><tbody>
       ${line('Recettes encaissées HT (chiffre d\'affaires à déclarer)', eur(s.recettesHT), true)}
-      ${line('dont TVA collectée', eur(s.recettesTVA))}
-      ${line('Recettes encaissées TTC', eur(s.recettesTTC))}
+      ${tvaOn ? line('dont TVA collectée', eur(s.recettesTVA)) + line('Recettes encaissées TTC', eur(s.recettesTTC)) : ''}
       ${line(`Cotisations URSSAF dues (${pct(s.rate)} %)`, eur(s.urssafDu))}
       ${line('Cotisations URSSAF payées ce mois', eur(s.urssafPaye))}
       ${line('Dépenses HT (hors URSSAF et virements perso)', eur(s.depensesHT))}
@@ -106,52 +100,58 @@ function byMonth(list, getDate) {
 
 function recettesSheet(year, month) {
   const { data } = state;
+  const tvaOn = isAssujetti(data.settings);
   const rate = rateFor(data.settings, year);
   const list = recettes(data, year, month || null);
+  const amounts = (x) => (tvaOn ? `<td class="num">${eur(x.ht)}</td><td class="num">${eur(x.ttc)}</td><td class="num">${eur(x.tva)}</td>` : `<td class="num">${eur(x.ht)}</td>`);
   const row = (r) => `<tr><td>${fmtDate(r.date)}</td><td>${esc(r.facture.numero)}<div class="muted">${fmtDate(r.facture.date)}</div></td><td>${esc(r.mission.client)}</td><td>${esc(r.mission.adresse || '')}</td><td>${esc(r.mission.siret || '')}</td><td>${esc(r.mission.nature || r.mission.ref || '')}</td>
-    <td class="num">${eur(r.ht)}</td><td class="num">${eur(r.ttc)}</td><td class="num">${eur(r.tva)}</td><td>${esc(r.facture.mode || '')}</td><td class="num">${eur(round2(r.ht * rate / 100))}</td></tr>`;
-  const sub = (label, rs) => { const t = sumRecettes(rs); return `<tr class="sub"><td colspan="6">${label}</td><td class="num">${eur(t.ht)}</td><td class="num">${eur(t.ttc)}</td><td class="num">${eur(t.tva)}</td><td></td><td class="num">${eur(round2(t.ht * rate / 100))}</td></tr>`; };
+    ${amounts(r)}<td>${esc(r.facture.mode || '')}</td><td class="num">${eur(round2(r.ht * rate / 100))}</td></tr>`;
+  const sub = (label, rs) => { const t = sumRecettes(rs); return `<tr class="sub"><td colspan="6">${label}</td>${amounts(t)}<td></td><td class="num">${eur(round2(t.ht * rate / 100))}</td></tr>`; };
   let body = '';
   if (month) body = list.map(row).join('');
   else for (const [m, rs] of byMonth(list, (r) => r.date)) body += rs.map(row).join('') + sub(`Total ${MOIS[m - 1]}`, rs);
   const tot = sumRecettes(list);
+  const heads = tvaOn ? '<th>Montant HT</th><th>Montant TTC</th><th>TVA</th>' : '<th>Montant</th>';
   return { land: true, html: `${docHead('Livre chronologique des recettes', year, month)}
-    ${list.length ? `<div class="table-wrap"><table><thead><tr><th>Date d'encaissement</th><th>Réf. pièce / date facture</th><th>Client</th><th>Adresse</th><th>SIRET</th><th>Nature</th><th>Montant HT</th><th>Montant TTC</th><th>TVA</th><th>Mode d'encaissement</th><th>URSSAF ${pct(rate)} %</th></tr></thead>
-      <tbody>${body}</tbody><tfoot><tr><td colspan="6">TOTAL RECETTES ENCAISSÉES</td><td class="num">${eur(tot.ht)}</td><td class="num">${eur(tot.ttc)}</td><td class="num">${eur(tot.tva)}</td><td></td><td class="num">${eur(round2(tot.ht * rate / 100))}</td></tr></tfoot></table></div>`
+    ${list.length ? `<div class="table-wrap"><table><thead><tr><th>Date d'encaissement</th><th>Réf. pièce / date facture</th><th>Client</th><th>Adresse</th><th>SIRET</th><th>Nature</th>${heads}<th>Mode d'encaissement</th><th>URSSAF ${pct(rate)} %</th></tr></thead>
+      <tbody>${body}</tbody><tfoot><tr><td colspan="6">TOTAL RECETTES ENCAISSÉES</td>${amounts(tot)}<td></td><td class="num">${eur(round2(tot.ht * rate / 100))}</td></tr></tfoot></table></div>`
       : '<p class="muted">Aucune recette encaissée sur cette période.</p>'}` };
 }
 
 function depensesSheet(year, month) {
   const { data } = state;
+  const tvaOn = isAssujetti(data.settings);
   const list = depenses(data, year, month || null);
+  const amounts = (a) => (tvaOn ? `<td class="num">${eur(a.ht)}</td><td class="num">${eur(a.tva)}</td><td class="num">${eur(a.ttc)}</td>` : `<td class="num">${eur(a.ttc)}</td>`);
   const row = (d) => {
-    const a = expenseAmounts(d);
+    const a = expenseAmounts(d, tvaOn);
     return `<tr><td>${fmtDate(d.date)}</td><td>${esc(d.reference || '')}</td><td>${esc(d.fournisseur)}<div class="muted">${esc(d.designation || '')}${d.categorie === 'km' ? ` (${d.km} km × ${d.tauxKm} €)` : ''}</div></td>
-      <td>${esc(CATEGORIES[d.categorie] || d.categorie)}</td><td class="num">${eur(a.ht)}</td><td class="num">${eur(a.tva)}</td><td class="num">${eur(a.ttc)}</td><td>${esc(d.mode || '')}</td><td>${(d.fileIds || []).length ? 'oui' : 'non'}</td></tr>`;
+      <td>${esc(CATEGORIES[d.categorie] || d.categorie)}</td>${amounts(a)}<td>${esc(d.mode || '')}</td><td>${(d.fileIds || []).length ? 'oui' : 'non'}</td></tr>`;
   };
   const totals = (rs) => {
-    const pro = rs.filter((d) => !HORS_DEPENSES.includes(d.categorie)).map(expenseAmounts);
+    const pro = rs.filter((d) => !HORS_DEPENSES.includes(d.categorie)).map((d) => expenseAmounts(d, tvaOn));
     return { ht: round2(pro.reduce((s, a) => s + a.ht, 0)), tva: round2(pro.reduce((s, a) => s + a.tva, 0)), ttc: round2(pro.reduce((s, a) => s + a.ttc, 0)) };
   };
-  const sub = (label, rs) => { const t = totals(rs); return `<tr class="sub"><td colspan="4">${label}</td><td class="num">${eur(t.ht)}</td><td class="num">${eur(t.tva)}</td><td class="num">${eur(t.ttc)}</td><td colspan="2"></td></tr>`; };
+  const sub = (label, rs) => `<tr class="sub"><td colspan="4">${label}</td>${amounts(totals(rs))}<td colspan="2"></td></tr>`;
   let body = '';
   if (month) body = list.map(row).join('');
   else for (const [m, rs] of byMonth(list, (d) => d.date)) body += rs.map(row).join('') + sub(`Total ${MOIS[m - 1]}`, rs);
-  const t = totals(list);
+  const heads = tvaOn ? '<th>Montant HT</th><th>TVA</th><th>Montant TTC</th>' : '<th>Montant</th>';
   return { land: true, html: `${docHead('Livre chronologique des dépenses', year, month)}
-    ${list.length ? `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Réf. pièce</th><th>Fournisseur, désignation</th><th>Nature</th><th>Montant HT</th><th>TVA</th><th>Montant TTC</th><th>Mode de paiement</th><th>Justificatif</th></tr></thead>
-      <tbody>${body}</tbody><tfoot><tr><td colspan="4">TOTAL DÉPENSES PROFESSIONNELLES (hors URSSAF et virements perso)</td><td class="num">${eur(t.ht)}</td><td class="num">${eur(t.tva)}</td><td class="num">${eur(t.ttc)}</td><td colspan="2"></td></tr></tfoot></table></div>`
+    ${list.length ? `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Réf. pièce</th><th>Fournisseur, désignation</th><th>Nature</th>${heads}<th>Mode de paiement</th><th>Justificatif</th></tr></thead>
+      <tbody>${body}</tbody><tfoot><tr><td colspan="4">TOTAL DÉPENSES PROFESSIONNELLES (hors URSSAF et virements perso)</td>${amounts(totals(list))}<td colspan="2"></td></tr></tfoot></table></div>`
       : '<p class="muted">Aucune dépense sur cette période.</p>'}` };
 }
 
 /** Liste des justificatifs à imprimer, dans l'ordre chronologique. */
 function collectPieces(year, month, opts) {
   const { data } = state;
+  const tvaOn = isAssujetti(data.settings);
   const pieces = [];
   const rec = recettes(data, year, month || null);
   if (opts.jFac) {
     for (const r of rec) pieces.push({ date: r.date, kind: 'Facture', title: `Facture ${r.facture.numero} — ${r.mission.client}`,
-      meta: `${eur(r.ht)} HT · ${eur(r.ttc)} TTC · émise le ${fmtDate(r.facture.date)} · encaissée le ${fmtDate(r.date)}${r.facture.mode ? ` (${r.facture.mode})` : ''}`, fileIds: [r.facture.fileId] });
+      meta: `${tvaOn ? `${eur(r.ht)} HT · ${eur(r.ttc)} TTC` : eur(r.ht)} · émise le ${fmtDate(r.facture.date)} · encaissée le ${fmtDate(r.date)}${r.facture.mode ? ` (${r.facture.mode})` : ''}`, fileIds: [r.facture.fileId] });
   }
   if (opts.jDevis) {
     const seen = new Set();
@@ -166,8 +166,8 @@ function collectPieces(year, month, opts) {
   if (opts.jDep) {
     for (const d of depenses(data, year, month || null)) {
       if (HORS_DEPENSES.includes(d.categorie) && !(d.fileIds || []).length) continue;
-      const a = expenseAmounts(d);
-      pieces.push({ date: d.date, kind: 'Dépense', title: `${d.fournisseur}${d.designation ? ' — ' + d.designation : ''}`, meta: `${fmtDate(d.date)} · ${eur(a.ttc)} TTC · ${CATEGORIES[d.categorie] || d.categorie}${d.mode ? ' · ' + d.mode : ''}`, fileIds: d.fileIds || [] });
+      const a = expenseAmounts(d, tvaOn);
+      pieces.push({ date: d.date, kind: 'Dépense', title: `${d.fournisseur}${d.designation ? ' — ' + d.designation : ''}`, meta: `${fmtDate(d.date)} · ${eur(a.ttc)}${tvaOn ? ' TTC' : ''} · ${CATEGORIES[d.categorie] || d.categorie}${d.mode ? ' · ' + d.mode : ''}`, fileIds: d.fileIds || [] });
     }
   }
   return pieces;

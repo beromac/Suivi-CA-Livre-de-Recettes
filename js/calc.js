@@ -25,6 +25,8 @@ export function defaultSettings() {
     defaultRate: 21.3,       // taux de cotisations URSSAF (%), repris du fichier Excel
     rates: {},               // taux par année : { "2026": 21.3 }
     periodicite: 'mensuelle', // ou 'trimestrielle'
+    tvaAssujetti: false,     // false = franchise en base de TVA : la TVA n'apparaît nulle part
+    tvaSimAffiche: true,     // en franchise : afficher (ou non) la simulation de TVA
     tvaTaux: 0,              // taux de TVA proposé par défaut sur les factures (0 = sans TVA)
     kmRate: 0,               // €/km proposé par défaut
     tjm: 300,                // taux journalier moyen (€), repris du fichier Excel (CA ÷ 300)
@@ -38,15 +40,20 @@ export function defaultSettings() {
 export const rateFor = (settings, year) =>
   settings.rates && settings.rates[year] != null && settings.rates[year] !== '' ? Number(settings.rates[year]) : Number(settings.defaultRate);
 
-export function factureAmounts(f) {
+/** Assujetti à la TVA (hors franchise en base) : coché dans les réglages. */
+export const isAssujetti = (settings) => !!(settings && settings.tvaAssujetti);
+
+/** Hors assujettissement (`actif` faux) : aucune TVA, TTC = HT. */
+export function factureAmounts(f, actif = true) {
   const ht = round2(f.montantHT);
-  const tva = round2(ht * (Number(f.tvaTaux) || 0) / 100);
+  const tva = actif ? round2(ht * (Number(f.tvaTaux) || 0) / 100) : 0;
   return { ht, tva, ttc: round2(ht + tva) };
 }
 
-export function expenseAmounts(d) {
+/** Hors assujettissement, la TVA des achats n'est pas récupérable : le coût réel est le TTC. */
+export function expenseAmounts(d, actif = true) {
   const ttc = round2(d.montantTTC);
-  const tva = round2(d.montantTVA);
+  const tva = actif ? round2(d.montantTVA) : 0;
   return { ttc, tva, ht: round2(ttc - tva) };
 }
 
@@ -59,7 +66,7 @@ export function recettes(data, year, month) {
   for (const mission of data.missions) {
     for (const f of mission.factures || []) {
       if (f.dateEncaissement && f.dateEncaissement.startsWith(pre)) {
-        out.push({ mission, facture: f, date: f.dateEncaissement, ...factureAmounts(f) });
+        out.push({ mission, facture: f, date: f.dateEncaissement, ...factureAmounts(f, isAssujetti(data.settings)) });
       }
     }
   }
@@ -84,9 +91,10 @@ export function summarize(data, year, month) {
   const rec = sumRecettes(recettes(data, year, month));
   const rate = rateFor(data.settings, year);
   const deps = depenses(data, year, month);
+  const actif = isAssujetti(data.settings);
   const pro = deps.filter((d) => !HORS_DEPENSES.includes(d.categorie));
-  const depensesHT = round2(pro.reduce((s, d) => s + expenseAmounts(d).ht, 0));
-  const depensesTTC = round2(pro.reduce((s, d) => s + expenseAmounts(d).ttc, 0));
+  const depensesHT = round2(pro.reduce((s, d) => s + expenseAmounts(d, actif).ht, 0));
+  const depensesTTC = round2(pro.reduce((s, d) => s + expenseAmounts(d, actif).ttc, 0));
   const urssafPaye = round2(deps.filter((d) => d.categorie === 'urssaf').reduce((s, d) => s + expenseAmounts(d).ttc, 0));
   const perso = round2(deps.filter((d) => d.categorie === 'perso').reduce((s, d) => s + expenseAmounts(d).ttc, 0));
   const urssafDu = round2(rec.ht * rate / 100);
@@ -146,7 +154,7 @@ export function enAttente(data) {
   const out = [];
   for (const mission of data.missions) {
     for (const f of mission.factures || []) {
-      if (!f.dateEncaissement && Number(f.montantHT) > 0) out.push({ mission, facture: f, ...factureAmounts(f) });
+      if (!f.dateEncaissement && Number(f.montantHT) > 0) out.push({ mission, facture: f, ...factureAmounts(f, isAssujetti(data.settings)) });
     }
   }
   out.sort((a, b) => String(a.facture.date).localeCompare(String(b.facture.date)));
@@ -239,20 +247,20 @@ export function simulationTva(data, year) {
   const st = data.settings;
   const taux = st.tvaSimTaux === '' || st.tvaSimTaux == null ? 20 : Number(st.tvaSimTaux);
   const incluse = st.tvaSimMode === 'incluse';
+  const reel = isAssujetti(st); // assujetti : TVA réelle des factures ; sinon : simulation
   const months = [];
   let cumul = 0;
   for (let m = 1; m <= 12; m++) {
     let collectee = 0;
     for (const r of recettes(data, year, m)) {
-      if (Number(r.facture.tvaTaux) > 0) collectee += r.tva;
-      else collectee += incluse ? r.ht * taux / (100 + taux) : r.ht * taux / 100;
+      collectee += reel ? r.tva : (incluse ? r.ht * taux / (100 + taux) : r.ht * taux / 100);
     }
     collectee = round2(collectee);
-    const deductible = round2(depenses(data, year, m).filter((d) => !HORS_DEPENSES.includes(d.categorie)).reduce((a, d) => a + expenseAmounts(d).tva, 0));
+    const deductible = round2(depenses(data, year, m).filter((d) => !HORS_DEPENSES.includes(d.categorie)).reduce((a, d) => a + round2(d.montantTVA), 0));
     const aReverser = round2(collectee - deductible);
     cumul = round2(cumul + aReverser);
     months.push({ month: m, collectee, deductible, aReverser, cumul });
   }
   const tot = (k) => round2(months.reduce((a, x) => a + x[k], 0));
-  return { taux, incluse, months, total: { collectee: tot('collectee'), deductible: tot('deductible'), aReverser: tot('aReverser') } };
+  return { taux, incluse, reel, months, total: { collectee: tot('collectee'), deductible: tot('deductible'), aReverser: tot('aReverser') } };
 }

@@ -1,7 +1,8 @@
 import { state } from './state.js';
-import { MOIS, summarizeYear, enAttente, margeTva, suiviMois, simulationTva } from './calc.js';
+import { MOIS, summarizeYear, enAttente, margeTva, suiviMois, isAssujetti } from './calc.js';
 import { esc, eur, fmtDate, pct } from './util.js';
 import { openEncaisser } from './view-missions.js';
+import { tvaHtml } from './tva-view.js';
 
 export function render() {
   const { year, data } = state;
@@ -10,7 +11,7 @@ export function render() {
   const att = enAttente(data);
   const tva = margeTva(data, year);
   const suivi = suiviMois(data, year);
-  const sim = simulationTva(data, year);
+  const tvaOn = isAssujetti(data.settings);
   const stot = (k) => suivi.reduce((a, x) => a + x[k], 0);
   const lb = data.settings.lastBackup;
   const days = lb ? Math.floor((Date.now() - new Date(lb)) / 86400000) : null;
@@ -25,7 +26,7 @@ export function render() {
 
   const attRows = att.map((a, i) => `<tr>
       <td>${esc(a.facture.numero)}</td><td><a href="#/mission/${a.mission.id}">${esc(a.mission.client)}</a></td>
-      <td>${fmtDate(a.facture.date)}</td><td class="num">${eur(a.ttc)}</td>
+      <td>${fmtDate(a.facture.date)}</td><td class="num">${eur(tvaOn ? a.ttc : a.ht)}</td>
       <td class="right"><button class="btn small primary" data-enc="${i}">Marquer encaissée</button></td></tr>`).join('');
 
   const html = `
@@ -36,7 +37,7 @@ export function render() {
       <div class="card"><div class="card-label">Cotisations URSSAF dues</div><div class="card-value">${eur(t.urssafDu)}</div><div class="muted">taux ${pct(t.rate)} % · déjà payé ${eur(t.urssafPaye)}</div></div>
       <div class="card"><div class="card-label">Dépenses HT</div><div class="card-value">${eur(t.depensesHT)}</div></div>
       <div class="card"><div class="card-label">Trésorerie</div><div class="card-value">${eur(t.tresorerie)}</div><div class="muted">recettes − dépenses − URSSAF</div></div>
-      ${tva.seuil ? `<div class="card"><div class="card-label">Avant le seuil de TVA</div><div class="card-value">${tva.reste >= 0 ? eur(tva.reste) : 'Seuil dépassé'}</div><div class="muted">${tva.reste >= 0 && tva.jours != null ? `≈ ${String(tva.jours).replace('.', ',')} jours à ${eur(tva.tjm)}` : `de ${eur(-tva.reste)} au-dessus de ${eur(tva.seuil)}`}</div></div>` : ''}
+      ${!tvaOn && tva.seuil ? `<div class="card"><div class="card-label">Avant le seuil de TVA</div><div class="card-value">${tva.reste >= 0 ? eur(tva.reste) : 'Seuil dépassé'}</div><div class="muted">${tva.reste >= 0 && tva.jours != null ? `≈ ${String(tva.jours).replace('.', ',')} jours à ${eur(tva.tjm)}` : `de ${eur(-tva.reste)} au-dessus de ${eur(tva.seuil)}`}</div></div>` : ''}
     </div>
     <p class="muted">Le chiffre d'affaires est compté dans le mois de la <strong>date d'encaissement</strong> de chaque facture.</p>
     <div class="table-wrap"><table>
@@ -52,15 +53,9 @@ export function render() {
         <td class="num">${eur(x.devisHT)}</td><td class="num">${eur(x.factureHT)}</td><td class="num">${eur(x.encaisseHT)}</td><td class="num">${eur(x.perso)}</td><td class="num strong">${eur(x.ecartCumule)}</td></tr>`).join('')}</tbody>
       <tfoot><tr><td>TOTAL</td><td class="num">${eur(stot('devisHT'))}</td><td class="num">${eur(stot('factureHT'))}</td><td class="num">${eur(stot('encaisseHT'))}</td><td class="num">${eur(stot('perso'))}</td><td class="num">${eur(suivi[11].ecartCumule)}</td></tr></tfoot>
     </table></div>
-    <h2>Simulation de TVA (si vous sortez de la franchise)</h2>
-    <p class="muted">Simulation indicative au taux de ${pct(sim.taux)} %, ${sim.incluse ? 'TVA considérée comme déjà incluse dans vos prix actuels' : 'TVA ajoutée à vos prix actuels'} (réglable dans Réglages). TVA collectée = sur les encaissements du mois ; TVA déductible = « dont TVA » saisie sur vos dépenses professionnelles, justificatifs à l'appui.</p>
-    <div class="table-wrap"><table>
-      <thead><tr><th>Mois</th><th class="num">TVA collectée</th><th class="num">TVA déductible</th><th class="num">TVA à reverser</th><th class="num">Cumul</th></tr></thead>
-      <tbody>${sim.months.map((x) => `<tr><td>${MOIS[x.month - 1]}</td><td class="num">${eur(x.collectee)}</td><td class="num">${eur(x.deductible)}</td><td class="num strong">${x.aReverser < 0 ? eur(-x.aReverser) + ' à récupérer' : eur(x.aReverser)}</td><td class="num">${eur(x.cumul)}</td></tr>`).join('')}</tbody>
-      <tfoot><tr><td>TOTAL</td><td class="num">${eur(sim.total.collectee)}</td><td class="num">${eur(sim.total.deductible)}</td><td class="num">${sim.total.aReverser < 0 ? eur(-sim.total.aReverser) + ' à récupérer' : eur(sim.total.aReverser)}</td><td class="num">${eur(sim.total.aReverser)}</td></tr></tfoot>
-    </table></div>
+    ${tvaHtml(data, year)}
     <h2>Factures en attente d'encaissement <span class="badge">${att.length}</span></h2>
-    ${att.length ? `<div class="table-wrap"><table><thead><tr><th>N°</th><th>Client</th><th>Émise le</th><th class="num">TTC</th><th></th></tr></thead><tbody>${attRows}</tbody></table></div>
+    ${att.length ? `<div class="table-wrap"><table><thead><tr><th>N°</th><th>Client</th><th>Émise le</th><th class="num">${tvaOn ? 'TTC' : 'Montant'}</th><th></th></tr></thead><tbody>${attRows}</tbody></table></div>
       <p class="muted">Ces montants ne comptent dans aucun mois tant que la date d'encaissement n'est pas renseignée.</p>`
       : '<p class="muted">Aucune facture en attente.</p>'}`;
 
