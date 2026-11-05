@@ -1,6 +1,6 @@
 // Stockage local (IndexedDB) : missions, dépenses, fichiers (justificatifs), réglages.
 const DB_NAME = 'livre-recettes';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 let db;
 
 export function open() {
@@ -8,8 +8,8 @@ export function open() {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const d = req.result;
-      // Création « si absent » : fonctionne pour une première installation comme pour une mise à jour (v1 → v2).
-      for (const s of ['missions', 'depenses', 'files', 'releves']) if (!d.objectStoreNames.contains(s)) d.createObjectStore(s, { keyPath: 'id' });
+      // Création « si absent » : fonctionne pour une première installation comme pour une mise à jour (v1 → v2 → v3).
+      for (const s of ['missions', 'depenses', 'files', 'releves', 'documents']) if (!d.objectStoreNames.contains(s)) d.createObjectStore(s, { keyPath: 'id' });
       if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta');
     };
     req.onsuccess = () => { db = req.result; resolve(db); };

@@ -5,6 +5,7 @@ import { openEncaisser } from './view-missions.js';
 import { openModal, toast, FilePicker } from './ui.js';
 import { tvaHtml } from './tva-view.js';
 import { chartsHtml } from './charts.js';
+import { alerteHtml } from './view-documents.js';
 
 /** Cellule « relevé de banque » d'un mois : nombre de fichiers joints, ou bouton d'ajout (avec alerte si le mois a de l'activité). */
 function releveCell(year, m) {
@@ -68,6 +69,7 @@ export function render() {
   const html = `
     <h1>Récapitulatif ${year}</h1>
     ${backupWarn}
+    ${alerteHtml(data)}
     <div class="cards">
       <div class="card"><div class="card-label">CA encaissé HT</div><div class="card-value">${eur(t.recettesHT)}</div><div class="muted">à déclarer à l'URSSAF</div></div>
       <div class="card"><div class="card-label">Cotisations URSSAF dues</div><div class="card-value">${eur(t.urssafDu)}</div><div class="muted">taux ${pct(t.rate)} % · déjà payé ${eur(t.urssafPaye)}</div></div>

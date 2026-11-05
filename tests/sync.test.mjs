@@ -6,14 +6,14 @@ import { syncCore, mergeData, planApply, canonical } from '../js/sync-core.js';
 
 /** Appareil factice : mêmes méthodes que l'adaptateur IndexedDB, en mémoire. */
 function device() {
-  const d = { missions: new Map(), depenses: new Map(), releves: new Map(), settings: null, tombstones: {}, blobs: new Map(), files: {} };
+  const d = { missions: new Map(), depenses: new Map(), releves: new Map(), documents: new Map(), settings: null, tombstones: {}, blobs: new Map(), files: {} };
   const local = {
-    snapshot: async () => ({ missions: [...d.missions.values()], depenses: [...d.depenses.values()], releves: [...d.releves.values()], settings: d.settings, tombstones: d.tombstones, files: d.files }),
+    snapshot: async () => ({ missions: [...d.missions.values()], depenses: [...d.depenses.values()], releves: [...d.releves.values()], documents: [...d.documents.values()], settings: d.settings, tombstones: d.tombstones, files: d.files }),
     hasBlob: async (id) => d.blobs.has(id),
     getBlob: async (id) => d.blobs.get(id),
     putBlob: async (meta, bytes) => { d.blobs.set(meta.id, bytes); d.files[meta.id] = meta; },
     apply: async (merged) => {
-      for (const [k, list] of [['missions', merged.missions], ['depenses', merged.depenses], ['releves', merged.releves]]) {
+      for (const [k, list] of [['missions', merged.missions], ['depenses', merged.depenses], ['releves', merged.releves], ['documents', merged.documents]]) {
         const plan = planApply([...d[k].values()], list, merged.tombstones);
         plan.put.forEach((r) => d[k].set(r.id, r)); plan.del.forEach((id) => d[k].delete(id));
       }
@@ -125,5 +125,25 @@ test('relevés de banque : synchronisés avec leurs fichiers, suppression propag
   await syncCore({ gh, local: pc.local });
   await syncCore({ gh, local: tel.local });
   assert.equal(tel.d.releves.has('2026-03'), false);
+  await mock.close();
+});
+
+test('documents administratifs : synchronisés avec leurs fichiers, suppression propagée, ancien data.json sans documents toléré', async () => {
+  const mock = await startMock();
+  const gh = ghFor(mock.url);
+  const pc = device(), tel = device();
+  pc.d.documents.set('doc1', { id: 'doc1', titre: 'Attestation RCP', categorie: 'assurance', dateEcheance: '2027-01-01', fileIds: ['d1'], updated: '2026-04-01T08:00:00Z' });
+  pc.addFile('d1', 'attestation-rcp');
+  await syncCore({ gh, local: pc.local });
+  assert.ok(mock.state.files.has('files/d1'));
+  await syncCore({ gh, local: tel.local });
+  assert.equal(tel.d.documents.get('doc1').titre, 'Attestation RCP');
+  assert.equal(new TextDecoder().decode(tel.d.blobs.get('d1')), 'attestation-rcp');
+  pc.d.documents.delete('doc1'); pc.d.tombstones = { doc1: '2026-05-01T00:00:00Z' };
+  await syncCore({ gh, local: pc.local });
+  await syncCore({ gh, local: tel.local });
+  assert.equal(tel.d.documents.has('doc1'), false);
+  const m = mergeData({ missions: [], depenses: [], releves: [], documents: [], settings: null, tombstones: {}, files: {} }, { missions: [], depenses: [], releves: [], settings: null, tombstones: {}, files: {} });
+  assert.deepEqual(m.documents, []);
   await mock.close();
 });

@@ -16,6 +16,7 @@ export async function exportBackup() {
     missions: state.data.missions,
     depenses: state.data.depenses,
     releves: state.data.releves,
+    documents: state.data.documents,
     settings: state.data.settings,
     tombstones: state.data.tombstones || {},
     files: meta,
@@ -43,10 +44,11 @@ export async function importBackup(file) {
     fileRows.push({ ...m, blob });
   }
   // Tout est lu et validé avant de toucher aux données existantes.
-  await Promise.all(['missions', 'depenses', 'files', 'releves'].map((s) => db.clear(s)));
+  await Promise.all(['missions', 'depenses', 'files', 'releves', 'documents'].map((s) => db.clear(s)));
   for (const m of data.missions || []) await db.put('missions', m);
   for (const d of data.depenses || []) await db.put('depenses', d);
   for (const r of data.releves || []) await db.put('releves', r);
+  for (const r of data.documents || []) await db.put('documents', r);
   for (const f of fileRows) await db.put('files', f);
   await db.put('meta', data.settings || {}, 'settings');
   await db.put('meta', data.tombstones || {}, 'tombstones');

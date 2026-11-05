@@ -200,3 +200,7 @@ svg.chart .donut-v { fill: var(--ink); font-size: 15px; font-weight: 700; }
   .charts-block .donut-legend { font-size: 9pt; }
   .charts-block .donut-legend li { padding: 1mm 0; }
 }
+
+/* Documents administratifs */
+.docs { display: grid; gap: .8rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); }
+.doc-actions { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; align-items: center; }

@@ -8,7 +8,7 @@ try { savedYear = Number(localStorage.getItem('lr_year')); } catch { /* stockage
 
 export const state = {
   year: savedYear || new Date().getFullYear(),
-  data: { missions: [], depenses: [], releves: [], settings: defaultSettings(), tombstones: {} },
+  data: { missions: [], depenses: [], releves: [], documents: [], settings: defaultSettings(), tombstones: {} },
 };
 
 export const hooks = { render: () => {}, onChange: () => {} };
@@ -23,6 +23,7 @@ export async function load() {
   state.data.missions = await db.getAll('missions');
   state.data.depenses = await db.getAll('depenses');
   state.data.releves = await db.getAll('releves');
+  state.data.documents = await db.getAll('documents');
   state.data.settings = { ...defaultSettings(), ...((await db.get('meta', 'settings')) || {}) };
   state.data.tombstones = (await db.get('meta', 'tombstones')) || {};
 }
@@ -112,6 +113,18 @@ export async function updateReleve(year, month, patch) {
   } else {
     await db.put('releves', rec);
   }
+  await load();
+  hooks.onChange();
+}
+
+/* ---------- Documents administratifs (URSSAF, assurance RCP, impôts…) ---------- */
+export async function saveDocument(d) { d.updated = now(); await db.put('documents', d); await load(); hooks.onChange(); }
+
+export async function deleteDocument(id) {
+  const d = state.data.documents.find((x) => x.id === id);
+  await db.del('documents', id);
+  await addTombstone(id);
+  if (d) await deleteFiles(d.fileIds || []);
   await load();
   hooks.onChange();
 }

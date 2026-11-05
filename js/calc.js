@@ -338,3 +338,21 @@ export function caCumule(data, year) {
   let cum = 0;
   return summarizeYear(data, year).months.map((m) => { cum = round2(cum + m.recettesHT); return { month: m.month, cumul: cum }; });
 }
+
+/** Catégories des documents administratifs. */
+export const CATEGORIES_DOC = {
+  urssaf: 'URSSAF / cotisations',
+  assurance: 'Assurance (RCP, décennale…)',
+  impots: 'Impôts (SIE, CFE, TVA)',
+  immat: 'Immatriculation (SIRET, Kbis, INSEE)',
+  banque: 'Banque',
+  contrat: 'Contrats / conditions générales',
+  autre: 'Autre',
+};
+
+/** État d'un document selon sa date d'échéance : 'expire', 'bientot' (≤ `jours` jours), 'ok' ou 'sans'. */
+export function statutDocument(doc, aujourdhui, jours = 60) {
+  if (!doc.dateEcheance) return { etat: 'sans', jours: null };
+  const diff = Math.round((new Date(`${doc.dateEcheance}T00:00:00Z`) - new Date(`${aujourdhui}T00:00:00Z`)) / 86400000);
+  return { etat: diff < 0 ? 'expire' : diff <= jours ? 'bientot' : 'ok', jours: diff };
+}

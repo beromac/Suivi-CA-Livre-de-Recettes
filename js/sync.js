@@ -30,6 +30,7 @@ const adapter = {
       missions: await db.getAll('missions'),
       depenses: await db.getAll('depenses'),
       releves: await db.getAll('releves'),
+      documents: await db.getAll('documents'),
       settings: (await db.get('meta', 'settings')) || null,
       tombstones: (await db.get('meta', 'tombstones')) || {},
       files,
@@ -39,7 +40,7 @@ const adapter = {
   async getBlob(id) { return new Uint8Array(await (await db.get('files', id)).blob.arrayBuffer()); },
   async putBlob(meta, bytes) { await db.put('files', { ...meta, blob: new Blob([bytes], { type: meta.type }) }); },
   async apply(merged) {
-    for (const [store, list] of [['missions', merged.missions], ['depenses', merged.depenses], ['releves', merged.releves]]) {
+    for (const [store, list] of [['missions', merged.missions], ['depenses', merged.depenses], ['releves', merged.releves], ['documents', merged.documents]]) {
       const plan = planApply(await db.getAll(store), list, merged.tombstones);
       for (const r of plan.put) await db.put(store, r);
       for (const id of plan.del) await db.del(store, id);

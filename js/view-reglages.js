@@ -171,7 +171,7 @@ export function render() {
 
       $('#wipe').addEventListener('click', async () => {
         if (!(await confirmBox('Effacer TOUTES les données de cet appareil (missions, dépenses, justificatifs, réglages) ? Faites une sauvegarde avant. Si la synchronisation est active, elles restent sur GitHub.', { ok: 'Tout effacer', danger: true }))) return;
-        await Promise.all(['missions', 'depenses', 'files', 'releves', 'meta'].map((x) => db.clear(x)));
+        await Promise.all(['missions', 'depenses', 'files', 'releves', 'documents', 'meta'].map((x) => db.clear(x)));
         await load(); toast('Données effacées'); hooks.render();
       });
 

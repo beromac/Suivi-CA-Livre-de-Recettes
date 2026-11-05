@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { recettes, summarize, summarizeYear, periodes, enAttente, nextFactureNumber, factureAmounts, defaultSettings, margeTva, rateFor, suiviMois, simulationTva, isAssujetti, expenseAmounts, relevesAImprimer, caParClient, caCumule } from '../js/calc.js';
+import { recettes, summarize, summarizeYear, periodes, enAttente, nextFactureNumber, factureAmounts, defaultSettings, margeTva, rateFor, suiviMois, simulationTva, isAssujetti, expenseAmounts, relevesAImprimer, caParClient, caCumule, statutDocument } from '../js/calc.js';
 
 const fac = (id, ht, enc, extra = {}) => ({ id, numero: id, date: '2026-01-05', montantHT: ht, tvaTaux: 0, dateEncaissement: enc, ...extra });
 const mk = (factures, depenses = [], settings = {}) => ({
@@ -167,4 +167,13 @@ test('caCumule : cumul mensuel du CA encaissé', () => {
   const d = { missions: [{ id: 'a', client: 'A', factures: [{ numero: 'F1', date: '2026-01-05', montantHT: 100, tvaTaux: 0, dateEncaissement: '2026-02-10' }, { numero: 'F2', date: '2026-01-05', montantHT: 50, tvaTaux: 0, dateEncaissement: '2026-04-10' }] }], depenses: [], settings: defaultSettings(), tombstones: {} };
   const c = caCumule(d, 2026);
   assert.deepEqual([c[0].cumul, c[1].cumul, c[2].cumul, c[3].cumul, c[11].cumul], [0, 100, 100, 150, 150]);
+});
+
+test('statutDocument : expiré, bientôt (≤ 60 j), valide, sans échéance', () => {
+  const j = '2026-11-05';
+  assert.deepEqual(statutDocument({ dateEcheance: '2026-11-04' }, j), { etat: 'expire', jours: -1 });
+  assert.deepEqual(statutDocument({ dateEcheance: '2026-11-05' }, j), { etat: 'bientot', jours: 0 });
+  assert.equal(statutDocument({ dateEcheance: '2027-01-04' }, j).etat, 'bientot');   // 60 jours
+  assert.equal(statutDocument({ dateEcheance: '2027-01-05' }, j).etat, 'ok');        // 61 jours
+  assert.equal(statutDocument({}, j).etat, 'sans');
 });

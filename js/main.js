@@ -9,6 +9,7 @@ import * as livres from './view-livres.js';
 import * as urssaf from './view-urssaf.js';
 import * as imprimer from './view-imprimer.js';
 import * as reglages from './view-reglages.js';
+import * as documents from './view-documents.js';
 import { isConfigured, startAuto } from './sync.js';
 
 const routes = {
@@ -18,6 +19,7 @@ const routes = {
   recettes: (p) => livres.renderRecettes(p),
   depenses: (p) => livres.renderDepenses(p),
   urssaf: () => urssaf.render(),
+  documents: () => documents.render(),
   imprimer: () => imprimer.render(),
   reglages: () => reglages.render(),
 };
