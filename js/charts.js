@@ -1,5 +1,5 @@
 // Graphiques SVG sans bibliothèque : évolution mensuelle, progression vers le seuil de TVA, répartition par client.
-import { MOIS, summarizeYear, caParClient, caCumule, margeTva, isAssujetti } from './calc.js';
+import { MOIS, summarizeYear, caParClient, caCumule, margeTva, margePlafond, isAssujetti } from './calc.js';
 import { esc, eur } from './util.js';
 
 export const COLORS = ['#0b6e63', '#d9822b', '#3b6fb6', '#b5486b', '#7a5ab0', '#5f9b2f', '#c0a000', '#2a9db8', '#8a8f8e'];
@@ -53,7 +53,8 @@ export function courbeCumul(data, year) {
   const cum = caCumule(data, year);
   const t = margeTva(data, year);
   const seuil = !isAssujetti(data.settings) && t.seuil ? t.seuil : 0;
-  const top = Math.max(cum[11].cumul, seuil * 1.05);
+  const plafond = margePlafond(data, year).plafond;
+  const top = Math.max(cum[11].cumul, seuil * 1.05, plafond * 1.05);
   const sc = niceScale(top), max = sc.max;
   const W = 720, H = 240, m = { l: 48, r: 8, t: 10, b: 28 };
   const gw = (W - m.l - m.r) / 12;
@@ -63,7 +64,8 @@ export function courbeCumul(data, year) {
   inner += `<polyline points="${pts}" fill="none" stroke="${C_CA}" stroke-width="2.5" stroke-linejoin="round"/>`;
   cum.forEach((c, i) => { inner += `<circle cx="${px(i)}" cy="${py(c.cumul)}" r="3.5" fill="${C_CA}"><title>${MOIS[i]} — cumul : ${eur(c.cumul)}</title></circle><text x="${px(i)}" y="${H - 9}" text-anchor="middle" class="tick">${MOIS[i].slice(0, 3).toLowerCase()}.</text>`; });
   if (seuil) inner += `<line x1="${m.l}" x2="${W - m.r}" y1="${py(seuil)}" y2="${py(seuil)}" stroke="${COLORS[3]}" stroke-width="1.5" stroke-dasharray="6 4"/><text x="${W - m.r - 4}" y="${py(seuil) - 5}" text-anchor="end" class="tick" fill="${COLORS[3]}">seuil de TVA ${eur(seuil)}</text>`;
-  return frame(W, H, inner, `CA encaissé cumulé en ${year}`) + legend([[C_CA, 'CA encaissé cumulé'], ...(seuil ? [[COLORS[3], 'Seuil de franchise de TVA']] : [])]);
+  if (plafond) inner += `<line x1="${m.l}" x2="${W - m.r}" y1="${py(plafond)}" y2="${py(plafond)}" stroke="${COLORS[4]}" stroke-width="1.5" stroke-dasharray="2 4"/><text x="${W - m.r - 4}" y="${py(plafond) + 13}" text-anchor="end" class="tick" fill="${COLORS[4]}">plafond micro-entreprise ${eur(plafond)}</text>`;
+  return frame(W, H, inner, `CA encaissé cumulé en ${year}`) + legend([[C_CA, 'CA encaissé cumulé'], ...(seuil ? [[COLORS[3], 'Seuil de franchise de TVA']] : []), ...(plafond ? [[COLORS[4], 'Plafond de CA micro-entreprise']] : [])]);
 }
 
 /** Camembert (anneau) du CA encaissé par client, avec légende chiffrée. */
@@ -91,7 +93,7 @@ export function chartsHtml(data, year) {
   return `<div class="charts-block"><h2>Graphiques ${year}</h2>
     <div class="charts">
       <section class="chart-card"><h3>Évolution mensuelle : CA, dépenses, URSSAF</h3>${barsMensuel(data, year)}</section>
-      <section class="chart-card"><h3>CA encaissé cumulé</h3>${courbeCumul(data, year)}</section>
+      <section class="chart-card"><h3>CA encaissé cumulé, seuil de TVA et plafond</h3>${courbeCumul(data, year)}</section>
       <section class="chart-card"><h3>Répartition du CA par client</h3>${camembertClients(data, year)}</section>
     </div></div>`;
 }

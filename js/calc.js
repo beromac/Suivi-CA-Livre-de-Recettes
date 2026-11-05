@@ -1,3 +1,4 @@
+import { tauxFor, seuilTvaFor, plafondCaFor } from './taux.js';
 // Logique métier pure (aucun accès au navigateur) : testable sous Node.
 export const MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
@@ -7,6 +8,7 @@ export const CATEGORIES = {
   km: 'Frais kilométriques',
   fournitures: 'Fournitures / matériel',
   services: 'Abonnements / logiciels',
+  assurance: 'Assurance',
   autre: 'Autre',
   urssaf: 'Paiement URSSAF',
   perso: 'Virement perso',
@@ -23,6 +25,8 @@ export function defaultSettings() {
   return {
     nom: '', siret: '', adresse: '', activite: '',
     beneficiairePerso: '',   // bénéficiaire pré-rempli pour les virements personnels
+    formeActivite: '',       // forme d'activité micro-entrepreneur : taux officiels appliqués automatiquement chaque année ('' = taux manuel)
+    versementLiberatoire: false, // option du versement libératoire de l'impôt sur le revenu (ajouté au taux)
     defaultRate: 21.3,       // taux de cotisations URSSAF (%), repris du fichier Excel
     rates: {},               // taux par année : { "2026": 21.3 }
     periodicite: 'mensuelle', // ou 'trimestrielle'
@@ -35,13 +39,19 @@ export function defaultSettings() {
     tjm: 300,                // taux journalier moyen (€), repris du fichier Excel (CA ÷ 300)
     tvaSimTaux: 20,          // simulation de TVA (sortie de la franchise) : taux appliqué
     tvaSimMode: 'ajoutee',   // 'ajoutee' : la TVA s'ajoute aux prix actuels ; 'incluse' : elle est déjà comprise dans les prix
+    plafondAffiche: true,    // afficher le plafond de CA du régime micro-entrepreneur (si une forme d'activité est choisie)
+    seuilTvaAffiche: true,   // afficher l'indicateur « avant le seuil de TVA »
     seuilTva: 37200,         // seuil de franchise de TVA (€) : 124 jours × 300 € dans le fichier Excel
     lastBackup: null,
   };
 }
 
-export const rateFor = (settings, year) =>
-  settings.rates && settings.rates[year] != null && settings.rates[year] !== '' ? Number(settings.rates[year]) : Number(settings.defaultRate);
+/** Taux applicable à une année : réglage spécifique à l'année > forme d'activité (taux officiels par année) > taux manuel par défaut. */
+export const rateFor = (settings, year) => {
+  if (settings.rates && settings.rates[year] != null && settings.rates[year] !== '') return Number(settings.rates[year]);
+  const t = tauxFor(settings.formeActivite, year, settings.versementLiberatoire);
+  return t ? t.total : Number(settings.defaultRate);
+};
 
 /** Assujetti à la TVA (hors franchise en base) : coché dans les réglages. */
 export const isAssujetti = (settings) => !!(settings && settings.tvaAssujetti);
@@ -199,10 +209,20 @@ export function yearsInData(data, extra = []) {
 export function margeTva(data, year) {
   const s = data.settings;
   const ca = summarizeYear(data, year).total.recettesHT;
-  const seuil = Number(s.seuilTva) || 0;
+  const auto = seuilTvaFor(s.formeActivite, year);
+  const seuil = s.seuilTvaAffiche === false ? 0 : auto ? auto.seuil : (Number(s.seuilTva) || 0);
   const tjm = Number(s.tjm) || 0;
   const reste = round2(seuil - ca);
-  return { ca, seuil, reste, jours: tjm > 0 ? Math.round((reste / tjm) * 10) / 10 : null, tjm };
+  return { ca, seuil, majore: auto && seuil ? auto.majore : 0, reste, jours: tjm > 0 ? Math.round((reste / tjm) * 10) / 10 : null, tjm };
+}
+
+/** Marge avant le plafond de CA du régime micro-entrepreneur (selon la forme d'activité choisie). */
+export function margePlafond(data, year) {
+  const s = data.settings;
+  const pl = s.plafondAffiche === false ? null : plafondCaFor(s.formeActivite, year);
+  if (!pl) return { plafond: 0 };
+  const ca = summarizeYear(data, year).total.recettesHT;
+  return { plafond: pl.plafond, ca, reste: round2(pl.plafond - ca), pct: pl.plafond ? ca / pl.plafond : 0, type: pl.type, exact: pl.exact, annee: pl.annee };
 }
 
 /** Date retenue pour situer un devis dans le temps : mois de réalisation prévu, sinon date de signature. */

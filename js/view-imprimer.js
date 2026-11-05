@@ -1,6 +1,6 @@
 // Impression : récapitulatif, livres des recettes / dépenses et justificatifs, par mois ou par année.
 import { state } from './state.js';
-import { MOIS, CATEGORIES, HORS_DEPENSES, recettes, depenses, sumRecettes, summarize, summarizeYear, expenseAmounts, margeTva, rateFor, round2, suiviMois, isAssujetti, relevesAImprimer } from './calc.js';
+import { MOIS, CATEGORIES, HORS_DEPENSES, recettes, depenses, sumRecettes, summarize, summarizeYear, expenseAmounts, margeTva, margePlafond, rateFor, round2, suiviMois, isAssujetti, relevesAImprimer } from './calc.js';
 import { esc, eur, fmtDate, today, pct } from './util.js';
 import { getFile, pdfToImages } from './files.js';
 import { toast } from './ui.js';
@@ -61,6 +61,7 @@ function docHead(title, year, month) {
 function recapSheet(year, month) {
   const { data } = state;
   const t = margeTva(data, year);
+  const plaf = margePlafond(data, year);
   if (!month) {
     const ys = summarizeYear(data, year);
     const rows = ys.months.map((m) => `<tr><td>${MOIS[m.month - 1]}</td><td class="num">${eur(m.recettesHT)}</td><td class="num">${eur(m.depensesHT)}</td><td class="num">${eur(m.urssafDu)}</td><td class="num">${eur(m.tresorerie)}</td><td class="num">${eur(m.perso)}</td></tr>`).join('');
@@ -75,7 +76,7 @@ function recapSheet(year, month) {
       ${tvaHtml(data, year)}
       <p class="muted">Recettes = factures encaissées dans le mois (date d'encaissement), hors TVA. Dépenses hors paiements URSSAF et virements personnels. Trésorerie = recettes − dépenses − cotisations URSSAF dues.</p>
       <p>Cotisations URSSAF payées sur l'année : <strong>${eur(x.urssafPaye)}</strong> · reste estimé : <strong>${eur(round2(x.urssafDu - x.urssafPaye))}</strong>
-      ${!isAssujetti(data.settings) && t.seuil ? `<br>Marge avant le seuil de franchise de TVA (${eur(t.seuil)}) : <strong>${t.reste >= 0 ? eur(t.reste) : 'seuil dépassé de ' + eur(-t.reste)}</strong>${t.reste >= 0 && t.jours != null ? ` (≈ ${String(t.jours).replace('.', ',')} jours à ${eur(t.tjm)})` : ''}` : ''}</p>` };
+      ${!isAssujetti(data.settings) && t.seuil ? `<br>Marge avant le seuil de franchise de TVA (${eur(t.seuil)}) : <strong>${t.reste >= 0 ? eur(t.reste) : 'seuil dépassé de ' + eur(-t.reste)}</strong>${t.reste >= 0 && t.jours != null ? ` (≈ ${String(t.jours).replace('.', ',')} jours à ${eur(t.tjm)})` : ''}` : ''}${plaf.plafond ? `<br>Plafond de chiffre d'affaires du régime micro-entrepreneur (${eur(plaf.plafond)}) : <strong>${plaf.reste >= 0 ? 'reste ' + eur(plaf.reste) : 'dépassé de ' + eur(-plaf.reste)}</strong> (${Math.round(plaf.pct * 100)} % utilisés)` : ''}</p>` };
   }
   const s = summarize(data, year, month);
   const tvaOn = isAssujetti(data.settings);

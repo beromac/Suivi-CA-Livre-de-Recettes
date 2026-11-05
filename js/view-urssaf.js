@@ -1,5 +1,6 @@
 import { state, hooks, saveSettings } from './state.js';
 import { MOIS, periodes, rateFor, summarizeYear } from './calc.js';
+import { tauxFor } from './taux.js';
 import { esc, eur, fmtDate, today, pct } from './util.js';
 import { toast } from './ui.js';
 
@@ -34,7 +35,7 @@ export function render() {
     <div class="page-head"><h1>Déclaration URSSAF ${year}</h1>
       <label class="inline">Périodicité
         <select id="per"><option value="mensuelle"${per === 'mensuelle' ? ' selected' : ''}>Mensuelle</option><option value="trimestrielle"${per === 'trimestrielle' ? ' selected' : ''}>Trimestrielle</option></select></label></div>
-    <p class="muted">Le chiffre d'affaires à déclarer est la somme des factures <strong>encaissées</strong> pendant la période (date d'encaissement), hors TVA. Le taux de ${pct(rate)} % est modifiable dans les réglages.</p>
+    <p class="muted">Le chiffre d'affaires à déclarer est la somme des factures <strong>encaissées</strong> pendant la période (date d'encaissement), hors TVA. ${(() => { const t = tauxFor(data.settings.formeActivite, year, data.settings.versementLiberatoire); return t && rate === t.total ? `Le taux de ${pct(rate)} % = cotisations ${pct(t.cotis)} % + contribution à la formation professionnelle ${pct(t.cfp)} %${t.vl ? ` + versement libératoire ${pct(t.vl)} %` : ''}, ajusté automatiquement selon l'année.` : `Le taux de ${pct(rate)} % est modifiable dans les réglages.`; })()}</p>
     ${current ? `<h2>À déclarer maintenant</h2>${card(current, true)}` : ''}
     <h2>Toutes les périodes</h2>
     ${list.map((p) => card(p, false)).join('')}
