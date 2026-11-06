@@ -71,13 +71,13 @@ export function render() {
     ${backupWarn}
     ${alerteHtml(data)}
     <div class="cards">
-      <div class="card"><div class="card-label">CA encaissé HT</div><div class="card-value">${eur(t.recettesHT)}</div><div class="muted">à déclarer à l'URSSAF</div></div>
-      <div class="card"><div class="card-label">Cotisations URSSAF dues</div><div class="card-value">${eur(t.urssafDu)}</div><div class="muted">taux ${pct(t.rate)} % · déjà payé ${eur(t.urssafPaye)}</div></div>
-      <div class="card"><div class="card-label">Dépenses HT</div><div class="card-value">${eur(t.depensesHT)}</div></div>
-      <div class="card"><div class="card-label">Trésorerie</div><div class="card-value">${eur(t.tresorerie)}</div><div class="muted">recettes − dépenses − URSSAF</div></div>
-      ${plaf.plafond ? `<div class="card"><div class="card-label">Avant le plafond de CA</div><div class="card-value">${plaf.reste >= 0 ? eur(plaf.reste) : 'Plafond dépassé'}</div><div class="muted">${Math.round(plaf.pct * 100)} % de ${eur(plaf.plafond)} utilisés${plaf.reste < 0 ? ` (dépassé de ${eur(-plaf.reste)})` : ''}</div></div>` : ''}
-      ${!tvaOn && tva.seuil ? `<div class="card"><div class="card-label">Avant le seuil de TVA</div><div class="card-value">${tva.reste >= 0 ? eur(tva.reste) : 'Seuil dépassé'}</div><div class="muted">${tva.reste >= 0 && tva.jours != null ? `≈ ${String(tva.jours).replace('.', ',')} jours à ${eur(tva.tjm)}` : `de ${eur(-tva.reste)} au-dessus de ${eur(tva.seuil)}`}</div></div>` : ''}
-      <div class="card"><div class="card-label">Virements perso cumulés</div><div class="card-value">${eur(t.perso)}</div><div class="muted">total ${year}</div></div>
+      <div class="card t-ca"><div class="card-label">CA encaissé HT</div><div class="card-value">${eur(t.recettesHT)}</div><div class="muted">à déclarer à l'URSSAF</div></div>
+      <div class="card t-urssaf"><div class="card-label">Cotisations URSSAF dues</div><div class="card-value">${eur(t.urssafDu)}</div><div class="muted">taux ${pct(t.rate)} % · déjà payé ${eur(t.urssafPaye)}</div></div>
+      <div class="card t-dep"><div class="card-label">Dépenses HT</div><div class="card-value">${eur(t.depensesHT)}</div></div>
+      <div class="card t-treso"><div class="card-label">Trésorerie</div><div class="card-value">${eur(t.tresorerie)}</div><div class="muted">recettes − dépenses − URSSAF</div></div>
+      <div class="card t-perso"><div class="card-label">Virements perso cumulés</div><div class="card-value">${eur(t.perso)}</div><div class="muted">total ${year}</div></div>
+      ${!tvaOn && tva.seuil ? `<div class="card t-tva"><div class="card-label">Avant le seuil de TVA</div><div class="card-value">${tva.reste >= 0 ? eur(tva.reste) : 'Seuil dépassé'}</div><div class="muted">${tva.reste >= 0 && tva.jours != null ? `≈ ${String(tva.jours).replace('.', ',')} jours à ${eur(tva.tjm)}` : `de ${eur(-tva.reste)} au-dessus de ${eur(tva.seuil)}`}</div></div>` : ''}
+      ${plaf.plafond ? `<div class="card t-plafond"><div class="card-label">Avant le plafond de CA</div><div class="card-value">${plaf.reste >= 0 ? eur(plaf.reste) : 'Plafond dépassé'}</div><div class="muted">${Math.round(plaf.pct * 100)} % de ${eur(plaf.plafond)} utilisés${plaf.reste < 0 ? ` (dépassé de ${eur(-plaf.reste)})` : ''}</div></div>` : ''}
     </div>
     <p class="muted">Le chiffre d'affaires est compté dans le mois de la <strong>date d'encaissement</strong> de chaque facture.</p>
     <div class="table-wrap"><table>

@@ -204,3 +204,24 @@ svg.chart .donut-v { fill: var(--ink); font-size: 15px; font-weight: 700; }
 /* Documents administratifs */
 .docs { display: grid; gap: .8rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); }
 .doc-actions { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; align-items: center; }
+
+/* Encarts du Récap : une couleur par thème */
+.card[class*="t-"] { --tc: var(--accent); --tb: var(--accent-soft); background: var(--tb); border-color: var(--tc); border-left-width: 5px; }
+.card[class*="t-"] .card-label { color: var(--tc); font-weight: 700; }
+.card[class*="t-"] .card-value { color: var(--tc); }
+.card.t-ca      { --tc: #1d6b33; --tb: #e2f4e7; }  /* encaissements : vert */
+.card.t-urssaf  { --tc: #b45309; --tb: #fff0dc; }  /* cotisations : orange */
+.card.t-dep     { --tc: #b3261e; --tb: #fdeceb; }  /* dépenses : rouge */
+.card.t-treso   { --tc: #0b6e63; --tb: #e0f2ef; }  /* trésorerie : turquoise */
+.card.t-perso   { --tc: #6b3fa0; --tb: #f1eafa; }  /* virements perso : violet */
+.card.t-tva     { --tc: #8a6d00; --tb: #fdf6d3; }  /* seuil de TVA : jaune */
+.card.t-plafond { --tc: #a21f5c; --tb: #fbe9f2; }  /* plafond de CA : rose */
+@media (prefers-color-scheme: dark) {
+  .card.t-ca      { --tc: #7fd49a; --tb: #163321; }
+  .card.t-urssaf  { --tc: #f4a95b; --tb: #3a2410; }
+  .card.t-dep     { --tc: #ff8f86; --tb: #3b1916; }
+  .card.t-treso   { --tc: #3cbfae; --tb: #17332f; }
+  .card.t-perso   { --tc: #c4a2f0; --tb: #2a1f3d; }
+  .card.t-tva     { --tc: #e8cf5a; --tb: #38310f; }
+  .card.t-plafond { --tc: #f08fbc; --tb: #3d1a2c; }
+}
