@@ -77,6 +77,7 @@ export function render() {
       <div class="card"><div class="card-label">Trésorerie</div><div class="card-value">${eur(t.tresorerie)}</div><div class="muted">recettes − dépenses − URSSAF</div></div>
       ${plaf.plafond ? `<div class="card"><div class="card-label">Avant le plafond de CA</div><div class="card-value">${plaf.reste >= 0 ? eur(plaf.reste) : 'Plafond dépassé'}</div><div class="muted">${Math.round(plaf.pct * 100)} % de ${eur(plaf.plafond)} utilisés${plaf.reste < 0 ? ` (dépassé de ${eur(-plaf.reste)})` : ''}</div></div>` : ''}
       ${!tvaOn && tva.seuil ? `<div class="card"><div class="card-label">Avant le seuil de TVA</div><div class="card-value">${tva.reste >= 0 ? eur(tva.reste) : 'Seuil dépassé'}</div><div class="muted">${tva.reste >= 0 && tva.jours != null ? `≈ ${String(tva.jours).replace('.', ',')} jours à ${eur(tva.tjm)}` : `de ${eur(-tva.reste)} au-dessus de ${eur(tva.seuil)}`}</div></div>` : ''}
+      <div class="card"><div class="card-label">Virements perso cumulés</div><div class="card-value">${eur(t.perso)}</div><div class="muted">total ${year}</div></div>
     </div>
     <p class="muted">Le chiffre d'affaires est compté dans le mois de la <strong>date d'encaissement</strong> de chaque facture.</p>
     <div class="table-wrap"><table>
