@@ -41,7 +41,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 1rem; outline: none; }
 
 @media (max-width: 760px) {
   .mainnav { position: fixed; inset: auto 0 0 0; z-index: 20; border-top: 1px solid var(--line); border-bottom: 0; padding-bottom: env(safe-area-inset-bottom); justify-content: space-around; }
-  .mainnav a { flex: 1; flex-direction: column; gap: 0; padding: .4rem .1rem; font-size: .68rem; border-bottom: 0; border-top: 3px solid transparent; align-items: center; }
+  .mainnav a { flex: 1 0 auto; min-width: 3.9rem; flex-direction: column; gap: 0; padding: .4rem .1rem; font-size: .68rem; border-bottom: 0; border-top: 3px solid transparent; align-items: center; }
   .mainnav a i { font-size: 1.25rem; }
   .mainnav a.active { border-top-color: var(--accent); }
   main { padding-bottom: calc(var(--nav-h) + 1.5rem + env(safe-area-inset-bottom)); }
@@ -171,7 +171,6 @@ body.modal-open { overflow: hidden; }
 /* Graphiques */
 .charts { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); margin: .6rem 0 1.2rem; }
 .chart-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: .8rem 1rem; box-shadow: var(--shadow); break-inside: avoid; }
-.chart-card:nth-child(3) { grid-column: 1 / -1; }
 .chart-card h3 { margin: 0 0 .5rem; font-size: 1rem; }
 svg.chart { width: 100%; height: auto; display: block; color: var(--ink); }
 svg.chart .grid { stroke: var(--line); stroke-width: 1; }
@@ -186,24 +185,30 @@ svg.chart .donut-v { fill: var(--ink); font-size: 15px; font-weight: 700; }
 .donut-legend .who { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .donut-legend .pc { width: 4.2rem; color: var(--muted); }
 @media print { .charts { grid-template-columns: 1fr; } .chart-card { box-shadow: none; } }
-/* Impression : les 3 graphiques tiennent sur une seule page, séparée des tableaux */
+/* Impression : les 4 graphiques tiennent sur une seule page A4, séparée des tableaux */
 @media print {
   .charts-block { break-before: page; break-after: page; }
-  .charts-block h2 { margin: 0 0 3mm; }
-  .charts-block .charts { gap: 3mm; margin: 0; }
-  .charts-block .chart-card { padding: 2mm 3mm; break-inside: avoid; }
-  .charts-block .chart-card h3 { font-size: 10pt; margin: 0 0 1mm; }
-  .charts-block .legend { font-size: 8pt; margin-top: 1mm; }
-  .charts-block svg.chart { max-height: 62mm; margin: 0 auto; }
-  .charts-block .donut-wrap { flex-wrap: nowrap; gap: 6mm; }
-  .charts-block .donut-wrap svg.chart { width: 48mm; max-height: none; }
-  .charts-block .donut-legend { font-size: 9pt; }
-  .charts-block .donut-legend li { padding: 1mm 0; }
+  .charts-block h2 { margin: 0 0 2mm; font-size: 14pt; }
+  .charts-block .charts { grid-template-columns: 1fr 1fr; gap: 2.5mm; margin: 0; }
+  .charts-block .chart-card { padding: 1.5mm 2.5mm; break-inside: avoid; min-width: 0; }
+  .charts-block .chart-card:nth-child(-n+2) { grid-column: 1 / -1; }
+  .charts-block .chart-card h3 { font-size: 9.5pt; margin: 0 0 .5mm; }
+  .charts-block .legend { font-size: 7.5pt; margin-top: .5mm; }
+  .charts-block svg.chart { margin: 0 auto; }
+  .charts-block .chart-card:nth-child(-n+2) svg.chart { max-height: 52mm; }
+  .charts-block .donut-wrap { flex-wrap: nowrap; gap: 2.5mm; align-items: flex-start; }
+  .charts-block .donut-wrap svg.chart { width: 32mm; flex: none; max-height: none; }
+  .charts-block .donut-legend { font-size: 7.5pt; flex: 1 1 0; min-width: 0; }
+  .charts-block .donut-legend li { padding: .6mm 0; gap: 1.5mm; }
+  .charts-block .donut-legend .pc { width: 9mm; }
+  .charts-block .donut-legend i { width: 2.5mm; height: 2.5mm; margin: 0; }
 }
 
 /* Documents administratifs */
 .docs { display: grid; gap: .8rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); }
 .doc-actions { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; align-items: center; }
+
+tbody tr.sub td { background: var(--accent-soft); font-weight: 600; }
 
 /* Encarts du Récap : une couleur par thème */
 .card[class*="t-"] { --tc: var(--accent); --tb: var(--accent-soft); background: var(--tb); border-color: var(--tc); border-left-width: 5px; }

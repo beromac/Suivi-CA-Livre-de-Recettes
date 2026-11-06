@@ -1,12 +1,12 @@
 // Impression : récapitulatif, livres des recettes / dépenses et justificatifs, par mois ou par année.
 import { state } from './state.js';
-import { MOIS, CATEGORIES, HORS_DEPENSES, recettes, depenses, sumRecettes, summarize, summarizeYear, expenseAmounts, margeTva, margePlafond, rateFor, round2, suiviMois, isAssujetti, relevesAImprimer } from './calc.js';
+import { MOIS, CATEGORIES, HORS_DEPENSES, recettes, depenses, fraisKm, totauxKm, sumRecettes, summarize, summarizeYear, expenseAmounts, margeTva, margePlafond, rateFor, round2, suiviMois, isAssujetti, relevesAImprimer } from './calc.js';
 import { esc, eur, fmtDate, today, pct } from './util.js';
 import { getFile, pdfToImages } from './files.js';
 import { toast } from './ui.js';
 import { tvaHtml } from './tva-view.js';
 import { chartsHtml } from './charts.js';
-import { baremeFor } from './bareme.js';
+import { baremeFor, CV_LABELS, clampCv } from './bareme.js';
 
 const $ = (s) => document.querySelector(s);
 
@@ -26,6 +26,7 @@ export function render() {
         <label class="check"><input type="checkbox" name="recap" checked> Récapitulatif (recettes, dépenses, URSSAF, trésorerie)</label>
         <label class="check"><input type="checkbox" name="livreRec" checked> Livre chronologique des recettes (classé par date d'encaissement)</label>
         <label class="check"><input type="checkbox" name="livreDep" checked> Livre chronologique des dépenses</label>
+        <label class="check"><input type="checkbox" name="kmFisc" checked> Frais kilométriques (suivis à part, pour la déclaration fiscale)</label>
       </fieldset>
       <fieldset><legend>Justificatifs (une pièce par page)</legend>
         <label class="check"><input type="checkbox" name="jFac" checked> Factures encaissées sur la période</label>
@@ -41,7 +42,7 @@ export function render() {
       root.querySelector('#pf').addEventListener('submit', (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
-        const opts = Object.fromEntries(['recap', 'livreRec', 'livreDep', 'jFac', 'jDevis', 'jDep', 'jRel'].map((k) => [k, fd.has(k)]));
+        const opts = Object.fromEntries(['recap', 'livreRec', 'livreDep', 'kmFisc', 'jFac', 'jDevis', 'jDep', 'jRel'].map((k) => [k, fd.has(k)]));
         if (!Object.values(opts).some(Boolean)) { toast('Cochez au moins un document', 'err'); return; }
         openPrint({ year, month: Number(fd.get('month')), opts });
       });
@@ -148,6 +149,23 @@ function depensesSheet(year, month) {
       : '<p class="muted">Aucune dépense sur cette période.</p>'}` };
 }
 
+function kmSheet(year, month) {
+  const { data } = state;
+  const list = fraisKm(data, year, month || null);
+  const nb = (n) => String(Math.round(n * 100) / 100).replace('.', ',');
+  const calc = (d) => (d.bareme ? `barème ${baremeFor(String(d.date).slice(0, 4)).year}, ${CV_LABELS[clampCv(d.cv)]}${d.elec ? ', électrique' : ''}` : `${pct(d.tauxKm)} €/km`);
+  const row = (d) => `<tr><td>${fmtDate(d.date)}</td><td>${esc(d.fournisseur)}</td><td>${esc(d.designation || '')}</td><td class="num">${d.jours ? nb(d.jours) : ''}</td><td class="num">${nb(d.km)}</td><td>${esc(calc(d))}</td><td class="num">${eur(d.montantTTC)}</td></tr>`;
+  const line = (label, rs) => { const t = totauxKm(rs); return `<tr class="sub"><td colspan="3">${label}</td><td class="num">${t.jours ? nb(t.jours) : ''}</td><td class="num">${nb(t.km)}</td><td></td><td class="num">${eur(t.indemnites)}</td></tr>`; };
+  let body = '';
+  if (month) body = list.map(row).join('');
+  else for (const [m, rs] of byMonth(list, (d) => d.date)) body += rs.map(row).join('') + line(`Total ${MOIS[m - 1]}`, rs);
+  const t = totauxKm(list);
+  return { land: true, html: `${docHead('Frais kilométriques (déclaration fiscale)', year, month)}
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Magasin / lieu</th><th>Motif</th><th>Jours</th><th>Km</th><th>Calcul</th><th>Indemnité</th></tr></thead>
+      <tbody>${body}</tbody><tfoot><tr><td colspan="3">TOTAL ${esc(periodLabel(year, month).toUpperCase())}</td><td class="num">${t.jours ? nb(t.jours) : ''}</td><td class="num">${nb(t.km)}</td><td></td><td class="num">${eur(t.indemnites)}</td></tr></tfoot></table></div>
+    <p class="muted">Indemnités calculées selon le barème kilométrique. Ces frais sont suivis à part : ils ne sont pas inclus dans les dépenses, la trésorerie ni la TVA.</p>` };
+}
+
 /** Liste des justificatifs à imprimer, dans l'ordre chronologique. */
 function collectPieces(year, month, opts) {
   const { data } = state;
@@ -238,6 +256,7 @@ export async function openPrint({ year, month, opts }) {
     if (opts.recap) { const s = recapSheet(year, month); add(s.html, s.land); }
     if (opts.livreRec) { const s = recettesSheet(year, month); add(s.html, s.land); }
     if (opts.livreDep) { const s = depensesSheet(year, month); add(s.html, s.land); }
+    if (opts.kmFisc && fraisKm(state.data, year, month || null).length) { const s = kmSheet(year, month); add(s.html, s.land); }
 
     const pieces = collectPieces(year, month, opts);
     let n = 0;

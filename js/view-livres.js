@@ -94,24 +94,25 @@ export function renderDepenses(params) {
   };
 }
 
-export function openDepenseForm(d = null, month = 0) {
+export function openDepenseForm(d = null, month = 0, kmMode = false) {
   const { year, data } = state;
+  const km0 = kmMode || !!(d && d.categorie === 'km'); // formulaire des frais kilométriques (suivis à part des dépenses)
   const defDate = (() => {
     const t = today();
     if (month && Number(t.slice(0, 4)) === year && Number(t.slice(5, 7)) === month) return t;
     if (month) return `${year}-${String(month).padStart(2, '0')}-01`;
     return Number(t.slice(0, 4)) === year ? t : `${year}-01-01`;
   })();
-  const cur = d || { date: defDate, fournisseur: '', designation: '', categorie: 'autre', montantTTC: '', montantTVA: '', mode: 'Carte bancaire', km: '', tauxKm: data.settings.kmRate || '', bareme: !!data.settings.kmCv, cv: data.settings.kmCv || 0, elec: !!data.settings.kmElec, fileIds: [], reference: '' };
+  const cur = d || { date: defDate, fournisseur: '', designation: '', categorie: km0 ? 'km' : 'autre', montantTTC: '', montantTVA: '', mode: km0 ? '' : 'Carte bancaire', km: '', tauxKm: data.settings.kmRate || '', bareme: !!data.settings.kmCv, cv: data.settings.kmCv || 0, elec: !!data.settings.kmElec, fileIds: [], reference: '' };
   const modal = openModal({
-    title: d ? 'Modifier la dépense' : 'Nouvelle dépense',
+    title: km0 ? (d ? 'Modifier le trajet' : 'Nouveau trajet (frais kilométriques)') : (d ? 'Modifier la dépense' : 'Nouvelle dépense'),
     body: `<form class="form">
       ${field('Date *', `<input name="date" type="date" required value="${esc(cur.date)}">`)}
-      ${field('Catégorie', `<select name="categorie">${options(Object.entries(CATEGORIES), cur.categorie)}</select>`)}
+      ${km0 ? '<input type="hidden" name="categorie" value="km">' : field('Catégorie', `<select name="categorie">${options(Object.entries(CATEGORIES), cur.categorie)}</select>`)}
       ${field('Magasin / mission (bénéficiaire)', `<select name="missionId"><option value="">— autre : saisie libre —</option>${[...data.missions].sort((a, b) => String(a.client).localeCompare(String(b.client))).map((m) => `<option value="${esc(m.id)}"${cur.missionId === m.id ? ' selected' : ''}>${esc(m.client)}${m.ref ? ` (${esc(m.ref)})` : ''}${Number(m.kmAR) > 0 ? ` — ${esc(String(m.kmAR).replace('.', ','))} km A/R` : ''}</option>`).join('')}</select>`, 'Choisir un magasin remplit automatiquement le bénéficiaire.')}
-      ${field('Fournisseur / bénéficiaire *', `<input name="fournisseur" required value="${esc(cur.fournisseur)}" autocomplete="off">`)}
-      ${field('Désignation', `<input name="designation" value="${esc(cur.designation)}">`)}
-      ${field('N° de pièce', `<input name="reference" value="${esc(cur.reference || '')}">`)}
+      ${field(km0 ? 'Magasin / lieu du déplacement *' : 'Fournisseur / bénéficiaire *', `<input name="fournisseur" required value="${esc(cur.fournisseur)}" autocomplete="off">`)}
+      ${field(km0 ? 'Motif du déplacement' : 'Désignation', `<input name="designation" value="${esc(cur.designation)}">`)}
+      <div ${km0 ? 'hidden' : ''}>${field('N° de pièce', `<input name="reference" value="${esc(cur.reference || '')}">`)}</div>
       <div id="kmBox" hidden>
         ${field('Nombre de jours dépannés', `<input name="jours" inputmode="decimal" value="${esc(cur.jours || '')}">`, 'Avec un magasin choisi ci-dessus : kilomètres = jours × km aller-retour de la mission.')}
         <p class="muted" id="kmHint" style="margin:-.4rem 0 0"></p>
@@ -124,8 +125,8 @@ export function openDepenseForm(d = null, month = 0) {
         ${field('Montant TTC (€) *', `<input name="montantTTC" inputmode="decimal" value="${esc(cur.montantTTC)}">`)}
         ${(isAssujetti(data.settings) || data.settings.tvaSimAffiche !== false) ? field('dont TVA (€)', `<input name="montantTVA" inputmode="decimal" value="${esc(cur.montantTVA)}">`, isAssujetti(data.settings) ? 'TVA récupérable indiquée sur le justificatif.' : 'Facultatif : sert uniquement à la simulation de TVA.') : ''}
       </div>
-      ${field('Mode de paiement', `<select name="mode"><option value=""></option>${options(MODES.map((x) => [x, x]), cur.mode)}</select>`)}
-      <div class="field"><span>Justificatif(s) : ticket, facture, relevé… (PDF ou photo)</span><div id="fp"></div></div>
+      <div ${km0 ? 'hidden' : ''}>${field('Mode de paiement', `<select name="mode"><option value=""></option>${options(MODES.map((x) => [x, x]), cur.mode)}</select>`)}
+      <div class="field"><span>Justificatif(s) : ticket, facture, relevé… (PDF ou photo)</span><div id="fp"></div></div></div>
       <div class="form-actions">${d ? '<button type="button" class="btn danger" data-del>Supprimer</button>' : ''}<span class="spacer"></span>
         <button type="button" class="btn" data-close2>Annuler</button><button class="btn primary">Enregistrer</button></div></form>`,
   });
@@ -190,8 +191,8 @@ export function openDepenseForm(d = null, month = 0) {
   modal.$('[data-close2]').addEventListener('click', () => modal.close());
   const del = modal.$('[data-del]');
   if (del) del.addEventListener('click', async () => {
-    if (await confirmBox('Supprimer cette dépense et ses justificatifs ?', { ok: 'Supprimer', danger: true })) {
-      await deleteDepense(d.id); modal.close(); toast('Dépense supprimée'); hooks.render();
+    if (await confirmBox(km0 ? 'Supprimer ce trajet ?' : 'Supprimer cette dépense et ses justificatifs ?', { ok: 'Supprimer', danger: true })) {
+      await deleteDepense(d.id); modal.close(); toast(km0 ? 'Trajet supprimé' : 'Dépense supprimée'); hooks.render();
     }
   });
   modal.$('form').addEventListener('submit', async (e) => {
@@ -208,6 +209,6 @@ export function openDepenseForm(d = null, month = 0) {
       missionId: fd.missionId || null,
       ...(isKm ? { jours: num(fd.jours) || null, km: num(fd.km), tauxKm: auto ? 0 : num(fd.tauxKm), bareme: auto, ...(auto ? kmVehicule() : {}) } : {}),
     };
-    await saveDepense(rec); await fp.cleanup(); modal.close(); toast('Dépense enregistrée'); hooks.render();
+    await saveDepense(rec); await fp.cleanup(); modal.close(); toast(km0 ? 'Trajet enregistré' : 'Dépense enregistrée'); hooks.render();
   });
 }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { recettes, summarize, summarizeYear, periodes, enAttente, nextFactureNumber, factureAmounts, defaultSettings, margeTva, rateFor, suiviMois, simulationTva, isAssujetti, expenseAmounts, relevesAImprimer, caParClient, caCumule, statutDocument } from '../js/calc.js';
+import { recettes, summarize, summarizeYear, periodes, enAttente, nextFactureNumber, factureAmounts, defaultSettings, margeTva, rateFor, suiviMois, simulationTva, isAssujetti, expenseAmounts, relevesAImprimer, caParClient, caCumule, statutDocument, fraisKm, totauxKm, depenses, depensesParCategorie } from '../js/calc.js';
 
 const fac = (id, ht, enc, extra = {}) => ({ id, numero: id, date: '2026-01-05', montantHT: ht, tvaTaux: 0, dateEncaissement: enc, ...extra });
 const mk = (factures, depenses = [], settings = {}) => ({
@@ -176,4 +176,37 @@ test('statutDocument : expiré, bientôt (≤ 60 j), valide, sans échéance', (
   assert.equal(statutDocument({ dateEcheance: '2027-01-04' }, j).etat, 'bientot');   // 60 jours
   assert.equal(statutDocument({ dateEcheance: '2027-01-05' }, j).etat, 'ok');        // 61 jours
   assert.equal(statutDocument({}, j).etat, 'sans');
+});
+
+test('frais kilométriques : suivis à part, hors dépenses, trésorerie et TVA déductible', () => {
+  const d = { missions: [{ id: 'm', client: 'A', factures: [{ id: 'f', numero: 'F', date: '2026-03-01', montantHT: 1000, tvaTaux: 0, dateEncaissement: '2026-03-05' }] }],
+    depenses: [
+      { id: 'a', date: '2026-03-10', categorie: 'fournitures', fournisseur: 'X', montantTTC: 100, montantTVA: 0 },
+      { id: 'k1', date: '2026-03-11', categorie: 'km', fournisseur: 'Magasin', km: 100, montantTTC: 52.9, jours: 1 },
+      { id: 'k2', date: '2026-04-02', categorie: 'km', fournisseur: 'Magasin', km: 50.5, montantTTC: 26.5 },
+      { id: 'p', date: '2026-03-12', categorie: 'perso', fournisseur: 'Moi', montantTTC: 300, montantTVA: 0 },
+    ], settings: defaultSettings(), tombstones: {} };
+  assert.deepEqual(depenses(d, 2026, 3).map((x) => x.id), ['a', 'p']);
+  const s = summarize(d, 2026, 3);
+  assert.equal(s.depensesHT, 100); assert.equal(s.perso, 300);
+  assert.equal(s.tresorerie, Math.round((1000 - 100 - s.urssafDu) * 100) / 100);
+  assert.deepEqual(fraisKm(d, 2026).map((x) => x.id), ['k1', 'k2']);
+  assert.deepEqual(fraisKm(d, 2026, 4).map((x) => x.id), ['k2']);
+  assert.deepEqual(totauxKm(fraisKm(d, 2026)), { km: 150.5, indemnites: 79.4, jours: 1, trajets: 2 });
+});
+
+test('depensesParCategorie : hors URSSAF, virements perso et frais km, triées, parts = 100 %', () => {
+  const d = { missions: [], settings: defaultSettings(), tombstones: {}, depenses: [
+    { id: '1', date: '2026-01-10', categorie: 'fournitures', fournisseur: 'A', montantTTC: 300, montantTVA: 0 },
+    { id: '2', date: '2026-02-10', categorie: 'fournitures', fournisseur: 'B', montantTTC: 100, montantTVA: 0 },
+    { id: '3', date: '2026-02-11', categorie: 'assurance', fournisseur: 'C', montantTTC: 500, montantTVA: 0 },
+    { id: '4', date: '2026-02-12', categorie: 'perso', fournisseur: 'Moi', montantTTC: 900, montantTVA: 0 },
+    { id: '5', date: '2026-02-13', categorie: 'urssaf', fournisseur: 'U', montantTTC: 700, montantTVA: 0 },
+    { id: '6', date: '2026-02-14', categorie: 'km', fournisseur: 'K', km: 10, montantTTC: 6, montantTVA: 0 },
+    { id: '7', date: '2025-02-14', categorie: 'services', fournisseur: 'Vieux', montantTTC: 50, montantTVA: 0 },
+  ] };
+  const l = depensesParCategorie(d, 2026);
+  assert.deepEqual(l.map((x) => [x.categorie, x.montant]), [['assurance', 500], ['fournitures', 400]]);
+  assert(Math.abs(l.reduce((s, x) => s + x.part, 0) - 1) < 1e-9);
+  assert.equal(l[0].label, 'Assurance');
 });

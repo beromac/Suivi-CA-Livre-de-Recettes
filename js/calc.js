@@ -5,7 +5,6 @@ export const MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Jui
 export const CATEGORIES = {
   repas: 'Repas',
   transport: 'Transport',
-  km: 'Frais kilométriques',
   fournitures: 'Fournitures / matériel',
   services: 'Abonnements / logiciels',
   assurance: 'Assurance',
@@ -90,6 +89,7 @@ export function recettes(data, year, month) {
 export function depenses(data, year, month) {
   const pre = prefix(year, month);
   return data.depenses
+    .filter((d) => d.categorie !== 'km') // les frais kilométriques sont suivis à part (déclaration fiscale), hors dépenses
     .filter((d) => d.date && d.date.startsWith(pre))
     .sort((a, b) => a.date.localeCompare(b.date));
 }
@@ -355,4 +355,32 @@ export function statutDocument(doc, aujourdhui, jours = 60) {
   if (!doc.dateEcheance) return { etat: 'sans', jours: null };
   const diff = Math.round((new Date(`${doc.dateEcheance}T00:00:00Z`) - new Date(`${aujourdhui}T00:00:00Z`)) / 86400000);
   return { etat: diff < 0 ? 'expire' : diff <= jours ? 'bientot' : 'ok', jours: diff };
+}
+
+/** Frais kilométriques (suivis à part des dépenses, pour la déclaration fiscale) d'une année ou d'un mois, par date. */
+export function fraisKm(data, year, month) {
+  const pre = prefix(year, month);
+  return data.depenses.filter((d) => d.categorie === 'km' && d.date && d.date.startsWith(pre))
+    .sort((a, b) => a.date.localeCompare(b.date) || String(a.id).localeCompare(String(b.id)));
+}
+
+export const totauxKm = (list) => ({
+  km: round2(list.reduce((s, d) => s + (Number(d.km) || 0), 0)),
+  indemnites: round2(list.reduce((s, d) => s + (Number(d.montantTTC) || 0), 0)),
+  jours: round2(list.reduce((s, d) => s + (Number(d.jours) || 0), 0)),
+  trajets: list.length,
+});
+
+/** Dépenses professionnelles de l'année par catégorie (hors URSSAF, virements perso et frais km), triées par montant décroissant. */
+export function depensesParCategorie(data, year) {
+  const actif = isAssujetti(data.settings);
+  const map = new Map();
+  for (const d of depenses(data, year)) {
+    if (HORS_DEPENSES.includes(d.categorie)) continue;
+    const key = CATEGORIES[d.categorie] ? d.categorie : 'autre';
+    map.set(key, round2((map.get(key) || 0) + expenseAmounts(d, actif).ht));
+  }
+  const list = [...map.entries()].filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  const total = round2(list.reduce((s, [, v]) => s + v, 0));
+  return list.map(([k, v]) => ({ categorie: k, label: CATEGORIES[k], montant: v, part: total ? v / total : 0 }));
 }

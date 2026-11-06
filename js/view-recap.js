@@ -46,6 +46,7 @@ export function render() {
   const att = enAttente(data);
   const tva = margeTva(data, year);
   const plaf = margePlafond(data, year);
+  const nbPerso = data.depenses.filter((d) => d.categorie === 'perso' && String(d.date || '').startsWith(String(year))).length;
   const suivi = suiviMois(data, year);
   const tvaOn = isAssujetti(data.settings);
   const stot = (k) => suivi.reduce((a, x) => a + x[k], 0);
@@ -75,7 +76,7 @@ export function render() {
       <div class="card t-urssaf"><div class="card-label">Cotisations URSSAF dues</div><div class="card-value">${eur(t.urssafDu)}</div><div class="muted">taux ${pct(t.rate)} % · déjà payé ${eur(t.urssafPaye)}</div></div>
       <div class="card t-dep"><div class="card-label">Dépenses HT</div><div class="card-value">${eur(t.depensesHT)}</div></div>
       <div class="card t-treso"><div class="card-label">Trésorerie</div><div class="card-value">${eur(t.tresorerie)}</div><div class="muted">recettes − dépenses − URSSAF</div></div>
-      <div class="card t-perso"><div class="card-label">Virements perso cumulés</div><div class="card-value">${eur(t.perso)}</div><div class="muted">total ${year}</div></div>
+      <div class="card t-perso"><div class="card-label">Virements personnels</div><div class="card-value">${eur(t.perso)}</div><div class="muted">${nbPerso} virement${nbPerso > 1 ? 's' : ''} cumulé${nbPerso > 1 ? 's' : ''} en ${year}</div></div>
       ${!tvaOn && tva.seuil ? `<div class="card t-tva"><div class="card-label">Avant le seuil de TVA</div><div class="card-value">${tva.reste >= 0 ? eur(tva.reste) : 'Seuil dépassé'}</div><div class="muted">${tva.reste >= 0 && tva.jours != null ? `≈ ${String(tva.jours).replace('.', ',')} jours à ${eur(tva.tjm)}` : `de ${eur(-tva.reste)} au-dessus de ${eur(tva.seuil)}`}</div></div>` : ''}
       ${plaf.plafond ? `<div class="card t-plafond"><div class="card-label">Avant le plafond de CA</div><div class="card-value">${plaf.reste >= 0 ? eur(plaf.reste) : 'Plafond dépassé'}</div><div class="muted">${Math.round(plaf.pct * 100)} % de ${eur(plaf.plafond)} utilisés${plaf.reste < 0 ? ` (dépassé de ${eur(-plaf.reste)})` : ''}</div></div>` : ''}
     </div>

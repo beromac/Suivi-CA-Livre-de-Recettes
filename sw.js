@@ -1,10 +1,10 @@
 // Mode hors-ligne : l'application s'ouvre sans réseau une fois visitée.
-const CACHE = 'livre-recettes-v19';
+const CACHE = 'livre-recettes-v20';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/main.js', 'js/db.js', 'js/state.js', 'js/calc.js', 'js/util.js', 'js/files.js', 'js/ui.js', 'js/backup.js',
   'js/view-recap.js', 'js/view-missions.js', 'js/view-livres.js', 'js/view-urssaf.js', 'js/view-imprimer.js', 'js/view-reglages.js',
-  'js/sync.js', 'js/sync-core.js', 'js/github.js', 'js/tva-view.js', 'js/charts.js', 'js/bareme.js', 'js/taux.js', 'js/view-documents.js',
+  'js/sync.js', 'js/sync-core.js', 'js/github.js', 'js/tva-view.js', 'js/charts.js', 'js/bareme.js', 'js/taux.js', 'js/view-documents.js', 'js/view-km.js',
   'vendor/jszip.min.js', 'vendor/pdf.min.mjs', 'vendor/pdf.worker.min.mjs',
   'icons/icon-192.png', 'icons/icon-512.png',
 ];
