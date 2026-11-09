@@ -111,3 +111,26 @@ export function chartsHtml(data, year) {
       <section class="chart-card"><h3>Où je dépense le plus (par catégorie)</h3>${camembertDepenses(data, year)}</section>
     </div></div>`;
 }
+
+/** Courbes « ce qu'il me reste » selon le CA, par structure ; repère vertical pour le CA actuel et le plafond de la micro. */
+export function courbesComparaison({ xs, series, noms, couleurs, caActuel, plafond }) {
+  const keys = Object.keys(series);
+  const all = keys.flatMap((k) => series[k]);
+  const lo = Math.min(0, ...all), hi = Math.max(...all);
+  const sc = niceScale(hi - Math.min(0, lo)), max = sc.max;
+  const W = 720, H = 280, m = { l: 52, r: 10, t: 10, b: 30 };
+  const x0 = xs[0], x1 = xs[xs.length - 1];
+  const px = (x) => m.l + ((W - m.l - m.r) * (x - x0)) / (x1 - x0 || 1);
+  const py = (v) => H - m.b - ((H - m.t - m.b) * (v - Math.min(0, lo))) / max;
+  let inner = '';
+  for (let v = Math.min(0, lo); v <= Math.min(0, lo) + max + 1e-9; v += sc.step) inner += `<line x1="${m.l}" x2="${W - m.r}" y1="${py(v)}" y2="${py(v)}" class="grid"/><text x="${m.l - 6}" y="${py(v) + 4}" text-anchor="end" class="tick">${short(v)}</text>`;
+  xs.forEach((x, i) => { if (i % 2 === 0) inner += `<text x="${px(x)}" y="${H - 10}" text-anchor="middle" class="tick">${short(x)}</text>`; });
+  if (caActuel >= x0 && caActuel <= x1) inner += `<line x1="${px(caActuel)}" x2="${px(caActuel)}" y1="${m.t}" y2="${H - m.b}" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" opacity=".6"/><text x="${px(caActuel) + 4}" y="${m.t + 10}" class="tick">votre CA</text>`;
+  if (plafond >= x0 && plafond <= x1) inner += `<line x1="${px(plafond)}" x2="${px(plafond)}" y1="${m.t}" y2="${H - m.b}" stroke="${COLORS[3]}" stroke-width="1.5" stroke-dasharray="6 4"/><text x="${px(plafond) - 4}" y="${m.t + 10}" text-anchor="end" class="tick" fill="${COLORS[3]}">plafond micro</text>`;
+  keys.forEach((k) => {
+    const pts = xs.map((x, i) => `${px(x)},${py(series[k][i])}`).join(' ');
+    inner += `<polyline points="${pts}" fill="none" stroke="${couleurs[k]}" stroke-width="2.5" stroke-linejoin="round"><title>${esc(noms[k])}</title></polyline>`;
+    xs.forEach((x, i) => { inner += `<circle cx="${px(x)}" cy="${py(series[k][i])}" r="2.6" fill="${couleurs[k]}"><title>${esc(noms[k])} — CA ${eur(x)} : reste ${eur(series[k][i])}</title></circle>`; });
+  });
+  return frame(W, H, inner, 'Ce qu\'il vous reste selon le chiffre d\'affaires, par structure') + legend(keys.map((k) => [couleurs[k], noms[k]]));
+}

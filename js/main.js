@@ -11,6 +11,7 @@ import * as imprimer from './view-imprimer.js';
 import * as reglages from './view-reglages.js';
 import * as documents from './view-documents.js';
 import * as kmView from './view-km.js';
+import * as impots from './view-impots.js';
 import { isConfigured, startAuto } from './sync.js';
 
 const routes = {
@@ -21,6 +22,7 @@ const routes = {
   depenses: (p) => livres.renderDepenses(p),
   urssaf: () => urssaf.render(),
   km: (p) => kmView.render(p),
+  impots: () => impots.render(),
   documents: () => documents.render(),
   imprimer: () => imprimer.render(),
   reglages: () => reglages.render(),

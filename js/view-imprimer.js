@@ -7,6 +7,7 @@ import { toast } from './ui.js';
 import { tvaHtml } from './tva-view.js';
 import { chartsHtml } from './charts.js';
 import { baremeFor, CV_LABELS, clampCv } from './bareme.js';
+import { declarationHtml } from './view-impots.js';
 
 const $ = (s) => document.querySelector(s);
 
@@ -26,6 +27,7 @@ export function render() {
         <label class="check"><input type="checkbox" name="recap" checked> Récapitulatif (recettes, dépenses, URSSAF, trésorerie)</label>
         <label class="check"><input type="checkbox" name="livreRec" checked> Livre chronologique des recettes (classé par date d'encaissement)</label>
         <label class="check"><input type="checkbox" name="livreDep" checked> Livre chronologique des dépenses</label>
+        <label class="check"><input type="checkbox" name="fiscal"> Aide à la déclaration d'impôts (cases à remplir) — année complète</label>
         <label class="check"><input type="checkbox" name="kmFisc" checked> Frais kilométriques (suivis à part, pour la déclaration fiscale)</label>
       </fieldset>
       <fieldset><legend>Justificatifs (une pièce par page)</legend>
@@ -42,7 +44,7 @@ export function render() {
       root.querySelector('#pf').addEventListener('submit', (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
-        const opts = Object.fromEntries(['recap', 'livreRec', 'livreDep', 'kmFisc', 'jFac', 'jDevis', 'jDep', 'jRel'].map((k) => [k, fd.has(k)]));
+        const opts = Object.fromEntries(['recap', 'livreRec', 'livreDep', 'kmFisc', 'fiscal', 'jFac', 'jDevis', 'jDep', 'jRel'].map((k) => [k, fd.has(k)]));
         if (!Object.values(opts).some(Boolean)) { toast('Cochez au moins un document', 'err'); return; }
         openPrint({ year, month: Number(fd.get('month')), opts });
       });
@@ -256,6 +258,7 @@ export async function openPrint({ year, month, opts }) {
     if (opts.recap) { const s = recapSheet(year, month); add(s.html, s.land); }
     if (opts.livreRec) { const s = recettesSheet(year, month); add(s.html, s.land); }
     if (opts.livreDep) { const s = depensesSheet(year, month); add(s.html, s.land); }
+    if (opts.fiscal && !month) add(`${docHead('Aide à la déclaration de revenus', year, 0)}${declarationHtml(state.data, year, { print: true })}`, false);
     if (opts.kmFisc && fraisKm(state.data, year, month || null).length) { const s = kmSheet(year, month); add(s.html, s.land); }
 
     const pieces = collectPieces(year, month, opts);

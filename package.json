@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Livre des recettes et dépenses, devis, factures et déclaration URSSAF (application web installable).",
   "scripts": {
-    "test": "node --test tests/calc.test.mjs tests/sync.test.mjs tests/bareme.test.mjs tests/taux.test.mjs",
+    "test": "node --test tests/calc.test.mjs tests/sync.test.mjs tests/bareme.test.mjs tests/taux.test.mjs tests/simu.test.mjs",
     "start": "python3 -m http.server 8080"
   }
 }

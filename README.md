@@ -83,3 +83,11 @@ python3 -m http.server  # puis http://localhost:8000
 
 Aucune étape de compilation. Bibliothèques incluses dans `vendor/` : JSZip (sauvegarde `.zip`) et PDF.js (impression des PDF).
 Si vous modifiez des fichiers, changez le numéro de version `CACHE` dans `sw.js` pour forcer la mise à jour du mode hors-ligne.
+
+
+## Impôts (déclaration + comparateur)
+
+- **Page 💰 Impôts → Ma déclaration de revenus** : cases de l'annexe 2042-C-PRO à remplir (selon votre forme d'activité et le versement libératoire), montant du CA encaissé, abattement forfaitaire, revenu imposable estimé, cotisations, vérification mois par mois. Imprimable (option « Aide à la déclaration d'impôts » dans Imprimer).
+- Les frais kilométriques **ne se déclarent pas en micro-entreprise** (l'abattement les couvre) ; ils ne servent qu'au régime réel ou aux frais réels d'un salarié.
+- **Comparer les structures** : micro, EI au réel, EURL (IS), SASU. Estimation du net restant, verdict, CA de bascule et courbe selon le CA. Hypothèses modifiables ; simulation indicative, à valider avec un expert-comptable.
+- À mettre à jour chaque année : `js/impots.js` (cases, abattements), `js/simu.js` (barème IR, IS, PFU).

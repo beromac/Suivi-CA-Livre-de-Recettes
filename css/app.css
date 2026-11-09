@@ -230,3 +230,18 @@ tbody tr.sub td { background: var(--accent-soft); font-weight: 600; }
   .card.t-tva     { --tc: #e8cf5a; --tb: #38310f; }
   .card.t-plafond { --tc: #f08fbc; --tb: #3d1a2c; }
 }
+
+/* Impôts */
+.tabs { display: flex; gap: .4rem; flex-wrap: wrap; margin: .6rem 0 1rem; }
+.tab { border: 1px solid var(--line); background: var(--surface); color: var(--ink); padding: .5rem .9rem; border-radius: 999px; font: inherit; cursor: pointer; }
+.tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.case { display: inline-block; padding: .15rem .5rem; border: 2px solid var(--accent); border-radius: 6px; font-size: 1.1rem; letter-spacing: .04em; }
+.grid2 { display: grid; gap: .6rem 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
+form.simu .checks { display: grid; gap: .3rem; margin: .5rem 0; }
+form.simu details { margin: .6rem 0; }
+table.compare th.best { color: var(--accent); }
+table.compare tr.total td { background: var(--accent-soft); font-size: 1.05rem; }
+table.compare td.num { white-space: nowrap; }
+details.detail { margin: .6rem 0 1rem; }
+@media print { .tabs { display: none; } }
+.notice.ok { background: var(--accent-soft); }
